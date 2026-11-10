@@ -21,7 +21,7 @@ will be added in their own sections when delivered.
 | Pagination | `?page=1&pageSize=20` (default 1/20, max 100); paged payloads are `PagedResult` |
 | Errors | Stable English `code` + Arabic human `message`; `fields` lists per-property violations |
 | Auth | `Authorization: Bearer <accessToken>` |
-| Clock | Values of `During - Requested` semantics are always server-authoritative (UTC) |
+| Clock | All timestamps are produced by the server in UTC; client-supplied times are validated, never trusted |
 | Trace | Each response carries a `traceId` string (echo it in bug reports) |
 
 ### Success envelope
@@ -73,21 +73,25 @@ Clients must branch on `error.code`, never on `error.message` (messages are Arab
 | `INVALID_CREDENTIALS` | 401 | Login failed |
 | `ACCOUNT_SUSPENDED` | 403 | Admin suspended this account |
 | `ACCOUNT_TYPE_REQUIRED` | 422 | Google sign-in needs role selection (`registrationTicket`) |
-| `EMAIL_NOT_VERIFIED` / `PHONE_NOT_VERIFIED` | 403 | Action requires a verified channel first |
-| `OTP_EXPIRED` / `OTP_INVALID` / `OTP_TOO_MANY_ATTEMPTS` / `OTP_RESEND_TOO_SOON` | 400/422 | Code lifecycle |
-| `GOOGLE_NOT_CONFIGURED` / `GOOGLE_TOKEN_INVALID` / `GOOGLE_TICKET_INVALID` | 400/501 | Google flows |
-| `VERIFICATION_INCOMPLETE` | 400 | Volunteer verification steps unfinished |
-| `VERIFICATION_ALREADY_SUBMITTED` | 409 | Review already pending/decided |
+| `EMAIL_NOT_VERIFIED` / `PHONE_NOT_VERIFIED` | 422 | Action requires a verified channel first |
+| `OTP_EXPIRED` / `OTP_TOO_MANY_ATTEMPTS` | 422 | Code lifecycle |
+| `OTP_INVALID` | 400 | Wrong code |
+| `OTP_RESEND_TOO_SOON` | 429 | Cooldown between two codes |
+| `GOOGLE_NOT_CONFIGURED` | 503 | Google client id is not configured |
+| `GOOGLE_TOKEN_INVALID` | 401 | Google id token rejected |
+| `GOOGLE_TICKET_INVALID` | 422 | Registration ticket expired |
+| `VERIFICATION_INCOMPLETE` | 422 | Volunteer verification steps unfinished |
+| `VERIFICATION_ALREADY_SUBMITTED` | 422 | Review already pending/decided |
 | `ORGANIZATION_NOT_APPROVED` | 403 | Publishing Phase-2 features without approval |
-| `DOCUMENTS_MISSING` | 400 | Organization submit lacks required documents |
-| `PROFILE_INCOMPLETE` | 400 | Organization submit lacks complete profile |
-| `DOCUMENT_TYPE_INVALID` | 422 | Unknown document type path segment |
+| `DOCUMENTS_MISSING` | 422 | Organization submit lacks required documents |
+| `PROFILE_INCOMPLETE` | 422 | Organization submit lacks complete profile |
+| `DOCUMENT_TYPE_INVALID` | 400 | Unknown document type path segment |
 | `ORGANIZATION_ALREADY_SUBMITTED` | 409 | Review already pending |
 | `FILE_TOO_LARGE` | 413 | Upload over category limit |
-| `FILE_TYPE_NOT_ALLOWED` | 415 | Content/magic bytes rejected |
+| `FILE_TYPE_NOT_ALLOWED` | 400 | Content/magic bytes rejected |
 | `INTERVIEW_SLOT_UNAVAILABLE` | 409 | Slot taken/cancelled/past |
 | `INTERVIEW_ALREADY_BOOKED` | 409 | Volunteer holds an active booking |
-| `INVALID_STATE` | 409 | Transition not allowed in current state |
+| `INVALID_STATE` | 422 | Transition not allowed in current state |
 | `SELF_ACTION_NOT_ALLOWED` | 400 | E.g. admin acting on own account |
 | `ACCESSIBILITY_NOT_ALLOWED` | 403 | Only `disabled_user` may own accessibility settings |
 | `CONSENT_REQUIRED` | 422 | Terms/privacy not accepted |
@@ -215,10 +219,10 @@ get 403 `ACCESSIBILITY_NOT_ALLOWED`.
 
 | Method | Path | Description |
 |---|---|---|
-| GET/PUT | `/me/volunteer-profile` | `{introduction, helpMode, skillLevel, weeklyHours, experienceNotes, skillIds}` |
-| GET/PUT | `/me/volunteer-location` | `{governorate, serviceArea, latitude?, longitude?, serviceRadiusKm∈[1,200]}` |
+| GET/PUT | `/me/volunteer-profile` | `{introduction, helpMode, skillLevel, weeklyHours (1–168), experienceNotes, skillIds}` |
+| GET/PUT | `/me/volunteer-location` | `{governorate, serviceArea, latitude?, longitude?, serviceRadiusKm? (1–200, optional)}` |
 | GET | `/me/verification` | `Verification` status object (drives the verification wizard UI) |
-| PUT | `/me/verification/evidence` | single evidence upload (multipart, images ≤ 10 MB) |
+| POST | `/me/verification/evidence` | multipart `evidenceType` + `file` (images ≤ 10 MB); `national_id_front` \| `national_id_back` \| `face_photo` |
 | PUT | `/me/verification/social-links` | `{links:[{platform,url}]}`; `platform-origin` verified |
 | GET | `/interview-slots` | public list of `available` slots (`[{interviewSlotId, startsAt, durationMinutes, status}]`) |
 | POST | `/me/verification/interview` | `{interviewSlotId}` — book atomically |
@@ -240,14 +244,16 @@ get 403 `ACCESSIBILITY_NOT_ALLOWED`.
   "canSubmit": true,
   "canBookInterview": true,
   "steps": [{ "key": "profile", "titleAr": "…", "completed": true, "required": true }],
-  "uploadedEvidenceTypes": ["id_card"],
+  "uploadedEvidenceTypes": ["national_id_front", "national_id_back", "face_photo"],
   "socialLinks": [{ "platform": "linkedin", "url": "https://…" }]
 }
 ```
 
 Lifecycle: `unverified` → fill profile + evidence + social links → `pending` → book interview
 → `interview_scheduled` → admin `approve` → `approved` (can submit Phase-2 help offers), or `rejected`.
-Rejection is silent to volunteers (no `decision_notes` in `VERIFICATION_REVIEW`; audit only).
+Pre-interview steps are: verified email, verified phone, the three evidence files and at least one
+social link. Rejection is silent to volunteers (no `decision_notes` in `VERIFICATION_REVIEW`; the
+reasons live in `ADMIN_AUDIT` only).
 
 ## 7. Organization (`association` and `company` only)
 
@@ -274,10 +280,10 @@ Rules:
 |---|---|---|
 | GET | `/admin/volunteer-reviews` | paged; filter `?status=` |
 | GET | `/admin/volunteer-reviews/{reviewId}` | detail incl. evidence short-lived URLs |
-| POST | `/admin/volunteer-reviews/{reviewId}/decision` | `{approve, notes?}` (approve doesn't need notes) |
+| POST | `/admin/volunteer-reviews/{reviewId}/decision` | `{approve, notes?}` — `notes` is **required when `approve=false`** |
 | GET | `/admin/organization-reviews` | paged; filter `?status=` |
 | GET | `/admin/organization-reviews/{reviewId}` | detail incl. documents short-lived URLs |
-| POST | `/admin/organization-reviews/{reviewId}/decision` | `{approve, notes?}` |
+| POST | `/admin/organization-reviews/{reviewId}/decision` | `{approve, notes?}` — `notes` is **required when `approve=false`** |
 | GET/POST | `/admin/interview-slots` | list / create `{startsAt, durationMinutes}` |
 | DELETE | `/admin/interview-slots/{slotId}` | free slot (available + unbooked only) |
 | PUT | `/admin/users/{userId}/suspension` | `{suspend, reason?}`; org suspension restores `pending_approval` when applicable |
@@ -294,7 +300,7 @@ All decisions are written to `ADMIN_AUDIT`.
 |---|---|---|
 | GET | `/files/{*key}?expires={unix}&signature={hmac}` | Validates HMAC; 302 or streams the content |
 
-Direct media (`StoredFile.publicUrl`, e.g. `/media/public/logos/…`) is only for public assets
+Direct media (`/media/public/logos/…`, the `key` of a stored file) is only for public assets
 (logos, covers, avatars). Evidence and organization documents are **private** — they always require
 signature + expiry and are stored outside the web root.
 

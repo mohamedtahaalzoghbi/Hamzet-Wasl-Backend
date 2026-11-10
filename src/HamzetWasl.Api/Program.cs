@@ -304,6 +304,12 @@ try
     if (!app.Configuration.GetValue<bool>("SkipDatabaseInitialization"))
     {
         using var scope = app.Services.CreateScope();
+
+        var connectionString = app.Configuration.GetConnectionString("DefaultConnection")
+            ?? throw new InvalidOperationException("ConnectionStrings:DefaultConnection is required.");
+
+        await scope.ServiceProvider.GetRequiredService<SchemaBootstrapper>().EnsureAsync(connectionString);
+
         var db = scope.ServiceProvider.GetRequiredService<HamzetWaslDbContext>();
         await IdentitySchemaInitializer.InitializeAsync(db);
         await scope.ServiceProvider.GetRequiredService<DatabaseSeeder>().SeedAsync();

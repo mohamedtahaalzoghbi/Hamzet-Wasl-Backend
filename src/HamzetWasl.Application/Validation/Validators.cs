@@ -255,6 +255,29 @@ public sealed class SetAvailabilityRequestValidator : AbstractValidator<SetAvail
             slot.RuleFor(s => s.Timezone).NotEmpty().Must(BeKnownTimezone).WithMessage("المنطقة الزمنية غير صحيحة.");
         });
         RuleFor(x => x.Slots).Must(slots => slots.Count <= 50).WithMessage("لا يمكن إضافة أكثر من ٥٠ فترة.");
+        RuleFor(x => x.Slots).Custom((slots, context) =>
+        {
+            if (slots is null)
+            {
+                return;
+            }
+
+            if (slots.Any(s => s.StartsAt <= DateTime.UtcNow))
+            {
+                context.AddFailure(nameof(SetAvailabilityRequest.Slots), "يجب أن تكون الفترات في المستقبل.");
+                return;
+            }
+
+            var ordered = slots.OrderBy(s => s.StartsAt).ToList();
+            for (var i = 1; i < ordered.Count; i++)
+            {
+                if (ordered[i].StartsAt < ordered[i - 1].EndsAt)
+                {
+                    context.AddFailure(nameof(SetAvailabilityRequest.Slots), "لا يمكن أن تتداخل فترات التوفر.");
+                    return;
+                }
+            }
+        });
     }
 
     private static bool BeKnownTimezone(string timezone)
@@ -316,6 +339,9 @@ public sealed class DecisionRequestValidator : AbstractValidator<DecisionRequest
     public DecisionRequestValidator()
     {
         RuleFor(x => x.Notes).MaximumLength(2000).WithMessage("الملاحظات طويلة جدًا.");
+        RuleFor(x => x)
+            .Must(x => x.Approve || !string.IsNullOrWhiteSpace(x.Notes))
+            .WithMessage("اذكر سبب الرفض في الملاحظات.");
     }
 }
 
@@ -323,7 +349,9 @@ public sealed class CreateInterviewSlotRequestValidator : AbstractValidator<Crea
 {
     public CreateInterviewSlotRequestValidator()
     {
-        RuleFor(x => x.StartsAt).NotEmpty().WithMessage("وقت الموعد مطلوب.");
+        RuleFor(x => x.StartsAt).NotEmpty().WithMessage("وقت الموعد مطلوب.")
+            .GreaterThan(DateTime.UtcNow.AddMinutes(-2))
+            .WithMessage("وقت الموعد يجب أن يكون في المستقبل.");
         RuleFor(x => x.DurationMinutes).InclusiveBetween(15, 120).WithMessage("مدة المقابلة يجب أن تكون بين ١٥ و١٢٠ دقيقة.");
     }
 }

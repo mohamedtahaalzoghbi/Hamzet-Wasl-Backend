@@ -55,6 +55,25 @@ public static class TestHttp
         return await ReadEnvelopeAsync<T>(response);
     }
 
+    /// <summary>POSTs a multipart form with one file plus extra string fields.</summary>
+    public static async Task<(int Status, T Data, ApiError? Error)> UploadFormAsync<T>(
+        this HttpClient client, string path, string fileName, byte[] bytes, string contentType,
+        IDictionary<string, string> fields, string fileField = "file")
+    {
+        using var content = new MultipartFormDataContent();
+        foreach (var field in fields)
+        {
+            content.Add(new StringContent(field.Value), field.Key);
+        }
+
+        var fileContent = new ByteArrayContent(bytes);
+        fileContent.Headers.ContentType = new(contentType);
+        content.Add(fileContent, fileField, fileName);
+
+        var response = await client.PostAsync(path, content);
+        return await ReadEnvelopeAsync<T>(response);
+    }
+
     /// <summary>Reads the envelope but drains the response body even for attempts that are not JSON.</summary>
     private static async Task<(int Status, T Data, ApiError? Error)> ReadEnvelopeAsync<T>(
         HttpResponseMessage response)

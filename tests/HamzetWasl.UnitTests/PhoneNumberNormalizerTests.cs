@@ -27,8 +27,8 @@ public class PhoneNumberNormalizerTests
     [InlineData("0197")]           // Too short.
     [InlineData("0101234567")]     // 10 digits total, not 11.
     [InlineData("010123456789")]   // Too long.
-    [InlineData("01002345678")]    // 2 is not a valid second digit.
-    [InlineData("02012345678")]    // 0 is not a valid second digit.
+    [InlineData("01712345678")]    // Third digit not 0/1/2/5 (not 010/011/012/015).
+    [InlineData("01912345678")]    // Third digit 9.
     [InlineData("+221012345678")]  // Wrong country code.
     [InlineData("971501234567")]   // Non-Egyptian.
     public void Invalid_or_non_egyptian_numbers_are_rejected(string? input) =>
@@ -36,5 +36,5 @@ public class PhoneNumberNormalizerTests
 
     [Fact]
     public void NormalizeOrThrow_throws_for_invalid_input() =>
-        Assert.Throws<ArgumentException>(() => PhoneNumberNormalizer.NormalizeOrThrow("01002345678"));
+        Assert.Throws<ArgumentException>(() => PhoneNumberNormalizer.NormalizeOrThrow("01912345678"));
 }

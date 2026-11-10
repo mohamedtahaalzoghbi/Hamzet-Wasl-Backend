@@ -8,6 +8,7 @@ using HamzetWasl.Application.Contracts.Organization;
 using HamzetWasl.Application.Contracts.Profile;
 using HamzetWasl.Application.Contracts.Volunteer;
 using HamzetWasl.Application.Common;
+using Microsoft.AspNetCore.Mvc.Testing;
 using Xunit;
 
 namespace HamzetWasl.IntegrationTests;
@@ -23,10 +24,15 @@ public class Phase1FlowTests(ApiFixture fixture)
     private HttpClient Client => fixture.AnonymousClient;
     private string Suffix { get; } = Guid.NewGuid().ToString("N")[..10];
 
-    private static HttpClient Authed(string accessToken) => new()
+    private HttpClient Authed(string accessToken)
     {
-        DefaultRequestHeaders = { Authorization = new AuthenticationHeaderValue("Bearer", accessToken) }
-    };
+        var client = fixture.Factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            BaseAddress = new Uri("http://localhost")
+        });
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+        return client;
+    }
 
     private string Email(string prefix) => $"{prefix}{Suffix}@example.com";
     private string Phone()
@@ -188,11 +194,52 @@ public class Phase1FlowTests(ApiFixture fixture)
     public async Task Volunteer_verification_flow()
     {
         var email = Email("vol");
-        var user = await Register("volunteer", "Volunteer Tester", email, Phone());
+        var phone = Phone();
+        var user = await Register("volunteer", "Volunteer Tester", email, phone);
         var client = Authed(user.AccessToken);
 
         var admin = await AdminLogin();
         var adminClient = Authed(admin.AccessToken);
+
+        // The volunteer must verify the email before uploading verification evidence.
+        var (_, _, sendCodeError) = await client.PostAsync<object?>("/api/v1/auth/email/send-code");
+        Assert.Null(sendCodeError);
+
+        var code = fixture.Factory.Messages.LastCode;
+        Assert.NotNull(code);
+
+        var (_, _, verifyCodeError) = await client.PostAsync<object?>("/api/v1/auth/email/verify", new { code });
+        Assert.Null(verifyCodeError);
+
+        // The phone must be verified as well before the review can start.
+        var (_, _, sendPhoneCodeError) = await client.PostAsync<object?>("/api/v1/auth/phone/send-code", new { phone });
+        Assert.Null(sendPhoneCodeError);
+
+        var phoneCode = fixture.Factory.Messages.LastCode;
+        Assert.NotNull(phoneCode);
+
+        var (_, _, verifyPhoneError) = await client.PostAsync<object?>("/api/v1/auth/phone/verify", new { code = phoneCode });
+        Assert.Null(verifyPhoneError);
+
+        // The volunteer must upload the three verification evidence files before booking.
+        var jpg = new byte[] { 0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10, 0x4A, 0x46, 0x49, 0x46 };
+        foreach (var evidenceType in new[] { "national_id_front", "national_id_back", "face_photo" })
+        {
+            var (_, _, evidenceError) = await client.UploadFormAsync<object?>(
+                "/api/v1/me/verification/evidence", $"{evidenceType}.jpg", jpg, "image/jpeg",
+                new Dictionary<string, string> { ["evidenceType"] = evidenceType });
+            Assert.Null(evidenceError);
+        }
+
+        // A social link is part of the pre-interview checklist.
+        var (_, _, socialLinksError) = await client.PutAsync<object?>("/api/v1/me/verification/social-links", new
+        {
+            links = new[]
+            {
+                new { platform = "facebook", url = "https://facebook.com/example" }
+            }
+        });
+        Assert.Null(socialLinksError);
 
         // Admin creates an interview slot.
         var (_, slot, slotError) = await adminClient.PostAsync<InterviewSlotAdminDto>("/api/v1/admin/interview-slots", new
@@ -328,6 +375,6 @@ public class Phase1FlowTests(ApiFixture fixture)
         Assert.Equal("FORBIDDEN", adminForbidden!.Code);
 
         var (_, _, organizationNotAllowed) = await client.GetAsync<OrganizationResponse>("/api/v1/me/organization");
-        Assert.Equal("NOT_FOUND", organizationNotAllowed!.Code);
+        Assert.Equal("FORBIDDEN", organizationNotAllowed!.Code);
     }
 }

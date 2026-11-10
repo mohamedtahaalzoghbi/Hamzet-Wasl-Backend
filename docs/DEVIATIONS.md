@@ -1,0 +1,34 @@
+# Deviations from MASTER_PROMPT
+
+Every intentional difference between the master prompt and what is implemented in Phase 1.
+The list is exhaustive for the delivered scope; open decisions that are not deviations live in
+`docs/OPEN_QUESTIONS.md`.
+
+| # | Master prompt | What is implemented | Reason | Impact |
+|---|---|---|---|---|
+| 1 | §1.1 — "run the script (or an initial migration that produces an identical schema)" | **No EF Core migrations at all.** The script is embedded in `HamzetWasl.Infrastructure` and applied by `SchemaBootstrapper` when the domain tables are missing. | The script is the source of truth; a second source (migrations) could drift from it. | The database is always exactly the script. `dotnet run` on an empty server creates and fills the database. |
+| 2 | §1.1 — the parity test must compare "tables, columns, nullability, FKs, unique constraints, **CHECK values**" | The **EF model** does not declare the 26 CHECK constraints (EF cannot enforce them without migrations); the script does, and SQL Server enforces them. The **unit** test fails if the EF model declares a CHECK the script does not contain; the **integration** test asserts that all 26 CHECK constraints exist in the applied database with the same allowed values. | Comparing the EF model against CHECKs would require duplicating them in `OnModelCreating`, which would create a second source of truth for the constraint values. | CHECK values are still verified end-to-end, against the real database. |
+| 3 | §1.3 — "`USER_ACCOUNT` is the Identity user table (extend `IdentityUser<Guid>` **or** link 1:1)" | `AspNetUsers` is the authentication table, linked 1:1 to `USER_ACCOUNT` through the shared `user_id`. | The script defines `USER_ACCOUNT` exactly and forbids changing it; extending it would have added Identity columns to a domain table. | Hashes, lockout and tokens stay in the Identity tables; the domain table is untouched. |
+| 4 | §4.5 — "approve/reject **with notes**" (volunteers and organizations) | `notes` is **required when `approve=false`** (validation rule) and is written to `ADMIN_AUDIT`. | `VERIFICATION_REVIEW` has no `decision_notes` column, so the reason cannot be shown to the volunteer without adding a column. | Admin reasons are auditable; volunteers receive a silent rejection, as the schema allows. |
+| 5 | §2 — `IPushSender` (FCM) | Not implemented in Phase 1. Notifications are stored in `NOTIFICATION` and delivered over SignalR. | Push channels are a Phase-2 concern (`NOTIFICATION.notification_type` carries the channel). | Phase 2 must add the interface before the mobile clients can rely on push. |
+| 6 | §2 — `IFileStorage` (local disk in dev, S3/Azure Blob in prod) | `LocalFileStorage` on disk behind the interface; the S3/Azure implementation is deferred. | No production bucket is available yet. | The swap is a DI change; the interface already hides it. |
+| 7 | §3 — "Accept `Accept-Language`; default `ar`" | Not implemented. All messages are Arabic; `code` is stable English. | The app is Arabic-first and the prompt does not define a second language. | Clients needing another language must translate from `code`. |
+| 8 | §3 — "HTTPS only, security headers" | `UseHttpsRedirection` is enabled and the API sets `X-Content-Type-Options`, `X-Frame-Options` and `Referrer-Policy`. HSTS is **not** enabled in the app. | HSTS belongs to the edge/reverse proxy that terminates TLS in production. | Production must enable HSTS (or TLS redirection) at the proxy. |
+| 9 | §3 — Swagger "with examples for every request/response" | The document ships schemas, the bearer security scheme, stable `operationId`s and the documented error codes, but **no per-request examples**. | Examples need the real client payloads; they are added with the Flutter/React work. | Clients still generate from the schemas. |
+| 10 | §4.3 — `GET /interview-slots?date=` "(unavailable ones flagged)" | The endpoint accepts the optional `date` filter and returns **only `available` slots**. | An unavailable slot is not bookable, and the list is public. | The client shows the bookable days; the booked slot is visible in `/me/verification`. |
+| 11 | §4.4 — "profile assets (**logo required**, cover optional)" | The logo is uploaded through `PUT /me/organization/logo`, but `canSubmit` only requires a complete profile **and** the three documents. | The prompt does not say the review is blocked by a missing logo, and blocking a review on an asset would strand organizations. | The onboarding screen still asks for the logo; the review can be submitted without it. |
+| 12 | §6 — "one admin **from env vars**" | The seed admin is configured through `Seed:AdminEmail` / `Seed:AdminPhone` / `Seed:AdminPassword`; the environment variables `Seed__AdminEmail` / `Seed__AdminPassword` override the development placeholders. The committed development file carries `DEV-ONLY` placeholders only. | The development machine needs a working admin without extra setup. | CI fails the build if any credential literal other than a `DEV-ONLY` placeholder is committed. |
+| 13 | §7.2 — "committing per slice" | The delivery is one `feat: phase 1` commit plus the test/CI commit, instead of one commit per vertical slice. | The repository was initialised at the end of the first delivery. | History is shorter than requested; the content of the slices is complete. |
+| 14 | §7.3 — "never change a published contract field without bumping the version and noting it in a `CHANGELOG`" | `docs/CHANGELOG.md` now exists and records the contract history. | The first delivery shipped without it. | Contract changes from now on are recorded there. |
+| 15 | §7.4 — "do not add features, tables, columns or endpoints that are not in the attached files" | No new table, column or product feature was added. Every endpoint maps to a bullet of §4 or to the Phase-1 meta data lists; `docs/ERD_TO_API_MAP.md` maps all 60 tables to their access level. | — | The schema file is untouched (verified by the parity tests). |
+
+## Not deviations (explicitly aligned)
+
+- Base path `/api/v1`, one envelope, camelCase, ISO-8601 UTC, GUID ids, snake_case enums, `page`/`pageSize`.
+- Roles exactly as in `ACCOUNT_ROLE`; `admin` is seeded and never publicly registrable.
+- Exactly one `need_type_id`; only `disabled_user` owns an accessibility profile; withdrawal deletes it.
+- No cascade deletes; deletion goes through `DELETION_REQUEST`.
+- Claims `sub`, `role`, `accountStatus`, `emailVerified`, `phoneVerified`; rotating hashed refresh tokens.
+- Rate limiting on auth, OTP and upload endpoints; parameterised EF queries; no PII in the logs.
+- Phone normalisation to E.164; 6-digit OTP with hash, expiry, attempt limit, resend cool-down.
+- Magic-byte validation for uploads with the sizes from the prompt (5 MB images, 10 MB documents/evidence).

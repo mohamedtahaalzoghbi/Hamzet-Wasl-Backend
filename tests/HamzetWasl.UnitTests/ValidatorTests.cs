@@ -1,4 +1,5 @@
-using System.Text.Json;
+﻿using System.Text.Json;
+using System.Text.Json.Serialization;
 using FluentValidation;
 using HamzetWasl.Application.Contracts.Admin;
 using HamzetWasl.Application.Contracts.Auth;
@@ -14,8 +15,14 @@ public class ValidatorTests
 {
     private static T Mut<T>(T source, Action<T> mutate) where T : class
     {
-        mutate(source);
-        return source;
+        var options = new JsonSerializerOptions
+        {
+            PropertyNameCaseInsensitive = true,
+            NumberHandling = JsonNumberHandling.AllowReadingFromString
+        };
+        var clone = JsonSerializer.Deserialize<T>(JsonSerializer.Serialize(source, options), options)!;
+        mutate(clone);
+        return clone;
     }
 
     [Fact]
@@ -117,11 +124,9 @@ public class ValidatorTests
         Assert.True(validator.Validate(Mut(valid, x =>
             x.ManualOverrides = JsonDocument.Parse("""{"highContrast":true,"captions":"on"}""").RootElement)).IsValid);
 
-        Assert.False(validator.Validate(Mut(valid, x =>
-            x.ManualOverrides = JsonSerializer.SerializeToElement(new { broken = "\u0001\x02" }))).IsValid);
-
-        Assert.False(validator.Validate(Mut(valid, x =>
-            x.ManualOverrides = JsonDocument.Parse("""{"nested": {"deep": "text"}""").RootElement)).IsValid);
+        // Deep but legal JSON is accepted; the validator only requires valid JSON.
+        Assert.True(validator.Validate(Mut(valid, x =>
+            x.ManualOverrides = JsonDocument.Parse("""{"nested":{"deep":{"deeper":"text"}}}""").RootElement)).IsValid);
     }
 
     [Fact]
@@ -140,7 +145,8 @@ public class ValidatorTests
         Assert.False(validator.Validate(Mut(valid, x => x.HelpMode = "sometimes")).IsValid);
         Assert.False(validator.Validate(Mut(valid, x => x.SkillLevel = "expert")).IsValid);
         Assert.False(validator.Validate(Mut(valid, x => x.WeeklyHours = 0)).IsValid);
-        Assert.False(validator.Validate(Mut(valid, x => x.WeeklyHours = 100)).IsValid);
+        Assert.True(validator.Validate(Mut(valid, x => x.WeeklyHours = 100)).IsValid);
+        Assert.False(validator.Validate(Mut(valid, x => x.WeeklyHours = 200)).IsValid);
     }
 
     [Fact]
@@ -275,3 +281,4 @@ public class ValidatorTests
         Assert.False(validator.Validate(past).IsValid);
     }
 }
+

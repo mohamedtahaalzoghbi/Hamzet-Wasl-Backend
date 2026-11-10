@@ -63,6 +63,7 @@ public static class DependencyInjection
         }
 
         services.AddSingleton<IClock, Clock>();
+    services.AddSingleton<SchemaBootstrapper>();
         services.AddSingleton<ITokenService, TokenService>();
         services.AddScoped<OtpService>();
         services.AddScoped<StorageKeyProtector>();

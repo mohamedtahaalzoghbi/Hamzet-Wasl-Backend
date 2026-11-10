@@ -10,6 +10,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- The authoritative schema is embedded so the API can bootstrap an empty database. -->
+    <EmbeddedResource Include="..\..\Hamzet_Wasl_Schema_v2.sql" LogicalName="Hamzet_Wasl_Schema_v2.sql" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="Google.Apis.Auth" Version="1.78.0" />
     <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.14" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.14">

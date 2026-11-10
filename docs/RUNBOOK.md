@@ -44,9 +44,13 @@ dotnet run --project src/HamzetWasl.Api
 
 First start performs (unless `SkipDatabaseInitialization=true`):
 
-1. Applies `Hamzet_Wasl_Schema_v2.sql` (all 60 domain tables) if the database is empty.
-2. `IdentitySchemaInitializer` creates the `AspNet*` Identity tables.
-3. `DatabaseSeeder` seeds roles, lookups, training module, feature registry, and the admin user.
+1. Creates the database if it does not exist yet.
+2. Applies `Hamzet_Wasl_Schema_v2.sql` (all 60 domain tables) if the domain tables are missing.
+3. `IdentitySchemaInitializer` creates the `AspNet*` Identity tables.
+4. `DatabaseSeeder` seeds roles, lookups, training module, feature registry, and the admin user.
+
+The schema file is embedded in `HamzetWasl.Infrastructure`, so no manual `sqlcmd` step is needed.
+EF Core migrations are **not** used: the SQL script is the single source of truth.
 
 Then:
 
@@ -74,30 +78,51 @@ dotnet test tests/HamzetWasl.UnitTests/HamzetWasl.UnitTests.csproj        # fast
 dotnet test tests/HamzetWasl.IntegrationTests/HamzetWasl.IntegrationTests.csproj
 ```
 
-Integration tests:
+Unit tests (98) cover the §1.9 business rules, the validators, the phone normaliser, the file
+rules and the **schema parity test** (EF model vs `Hamzet_Wasl_Schema_v2.sql`).
 
-- create a unique `HamzetWasl_IT_<guid>` LocalDB database,
+Integration tests (9) run against a real SQL Server:
+
+- create a unique `HamzetWasl_IT_<guid>` database,
 - apply `Hamzet_Wasl_Schema_v2.sql` exactly as shipped (batch splitter on `GO`),
 - boot the real API through `WebApplicationFactory` with `SkipDatabaseInitialization=true`,
-- run end-to-end Phase-1 flows, then drop the database.
+- run the Phase-1 end-to-end flows and the applied-schema assertions, then drop the database.
 
+Locally they use LocalDB. On CI (or any other server) point them at it with environment
+variables:
+
+| Variable | Example |
+|---|---|
+| `HW_TEST_SQL_SERVER` | `localhost,1433` |
+| `HW_TEST_SQL_USER` | `sa` |
+| `HW_TEST_SQL_PASSWORD` | `Password123!` |
+
+When these are absent the tests fall back to `(localdb)\MSSQLLocalDB` with a trusted connection.
 They need LocalDB running and SAC off (see warning above).
 
 ## 6. OpenAPI export + drift check
 
 ```powershell
-# Start the app once, then:
+# Start the app, then:
 Invoke-WebRequest -Uri http://localhost:5153/swagger/v1/swagger.json -OutFile docs/openapi.json
-dotnet run --project tools/OpenApiCheck   # compares docs/openapi.json with the live document
 ```
 
-CI (GitHub Actions, `ci.yml`):
+The committed file must stay byte-comparable with the live document. CI (GitHub Actions,
+`.github/workflows/ci.yml`) does it automatically:
 
-1. `dotnet build -warnaserror` on `src/**` (0 warnings required).
-2. Run unit tests.
-3. Start the API with a throwaway LocalDB and export `swagger.json`.
-4. `OpenApiCheck` fails the build when routes/schemas drift from the committed
-   `docs/openapi.json` — contract changes must update the file in the same PR.
+1. `dotnet build -p:TreatWarningsAsErrors=true` (0 warnings required).
+2. Unit tests, then integration tests against a SQL Server 2022 service container.
+3. The API is started against a throwaway database and `swagger.json` is exported.
+4. `jq -S` compares the export with `docs/openapi.json`; a difference fails the build —
+   contract changes must update the file in the same commit.
+
+## 6.1 Continuous integration jobs
+
+| Job | What it guarantees |
+|---|---|
+| `build-and-test` | 0 warnings, unit + integration tests green |
+| `openapi-drift` | `docs/openapi.json` matches the running API |
+| `no-secrets` | no credential literal is committed (production config must be empty, development config only `DEV-ONLY` placeholders) |
 
 ## 7. Manual verification checklist (Phase 1)
 
@@ -122,14 +147,16 @@ Happy paths, in order, via Swagger (`Authorize` with the `accessToken`):
 | `An Application Control policy has blocked this file` (0x800711C7) | Smart App Control; disable it or run on another machine |
 | SQL "database already exists" | test DBs are named `HamzetWasl_IT_*`; drop leftovers with `sqllocaldb` |
 | `/media` 404 for evidence URLs | private files need signed `/api/v1/files/...` URLs; only public assets use `/media` |
-| OTP never verifies in dev | seeded sender writes codes to logs in Development; check console/Serilog output |
+| OTP never verifies in dev | the development sender only logs that a message was sent (no code in the logs). The integration tests capture the code through `CapturingMessageSender`; for manual testing call `/auth/email/send-code` and read the code from the configured SMTP/SMS gateway |
 
 ## 9. Definition of done (Phase 1)
 
-- [x] `dotnet build` → 0 errors, 0 warnings across the solution.
+- [x] `dotnet build` → 0 errors, 0 warnings across the solution (also enforced in CI).
 - [x] Business rules from MASTER_PROMPT §1.9 covered by unit tests.
 - [x] Integration tests cover: onboarding, profile/accessibility flows, volunteer
-      verification, organization onboarding, admin queues/audit, ownership rules.
-- [x] `docs/openapi.json` committed and CI-validated.
-- [x] `docs/API_CONTRACT.md`, `docs/ERD_TO_API_MAP.md`, `docs/OPEN_QUESTIONS.md`, this runbook.
+      verification, organization onboarding, admin queues/audit, ownership rules, and the
+      applied-schema assertions (tables, CHECK constraints, FKs, unique constraints, indexes).
+- [x] `docs/openapi.json` committed and CI-validated (drift check).
+- [x] `docs/API_CONTRACT.md`, `docs/ERD_TO_API_MAP.md`, `docs/OPEN_QUESTIONS.md`,
+      `docs/DEVIATIONS.md`, this runbook.
 - [x] No PII in logs; no cascade deletes; schema file untouched.

@@ -1,0 +1,188 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  DOTNET_NOLOGO: "true"
+  DOTNET_CLI_TELEMETRY_OPTOUT: "true"
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: "true"
+  SA_PASSWORD: "Password123!"
+  CI_DB: "HamzetWasl_CI"
+
+jobs:
+  build-and-test:
+    name: Build, unit + integration tests
+    runs-on: ubuntu-latest
+
+    services:
+      mssql:
+        image: mcr.microsoft.com/mssql/server:2022-latest
+        env:
+          ACCEPT_EULA: "Y"
+          MSSQL_SA_PASSWORD: ${{ env.SA_PASSWORD }}
+          MSSQL_PID: "Developer"
+        ports:
+          - 1433:1433
+        options: >-
+          --health-cmd "/opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P 'Password123!' -Q 'SELECT 1'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Restore
+        run: dotnet restore HamzetWasl.slnx
+
+      - name: Build (warnings are errors)
+        run: >
+          dotnet build HamzetWasl.slnx -c Release --no-restore -p:TreatWarningsAsErrors=true
+
+      - name: Unit tests
+        run: >
+          dotnet test tests/HamzetWasl.UnitTests/HamzetWasl.UnitTests.csproj
+          -c Release --no-build -p:TreatWarningsAsErrors=true
+          --logger "trx;LogFileName=unit-tests.trx" --results-directory TestResults
+
+      - name: Integration tests (SQL Server container)
+        env:
+          HW_TEST_SQL_SERVER: "localhost,1433"
+          HW_TEST_SQL_USER: "sa"
+          HW_TEST_SQL_PASSWORD: ${{ env.SA_PASSWORD }}
+        run: >
+          dotnet test tests/HamzetWasl.IntegrationTests/HamzetWasl.IntegrationTests.csproj
+          -c Release --no-build -p:TreatWarningsAsErrors=true
+          --logger "trx;LogFileName=integration-tests.trx" --results-directory TestResults
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: TestResults
+          if-no-files-found: ignore
+
+  openapi-drift:
+    name: docs/openapi.json is up to date
+    runs-on: ubuntu-latest
+
+    services:
+      mssql:
+        image: mcr.microsoft.com/mssql/server:2022-latest
+        env:
+          ACCEPT_EULA: "Y"
+          MSSQL_SA_PASSWORD: ${{ env.SA_PASSWORD }}
+          MSSQL_PID: "Developer"
+        ports:
+          - 1433:1433
+        options: >-
+          --health-cmd "/opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P 'Password123!' -Q 'SELECT 1'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Build
+        run: dotnet build src/HamzetWasl.Api/HamzetWasl.Api.csproj -c Release -p:TreatWarningsAsErrors=true
+
+      - name: Start the API (it creates the database and applies the authoritative schema)
+        run: |
+          set -euo pipefail
+          export ASPNETCORE_ENVIRONMENT=Development
+          export ASPNETCORE_URLS=http://127.0.0.1:5080
+          export ConnectionStrings__DefaultConnection="Server=localhost,1433;Database=${CI_DB};User Id=sa;Password=${SA_PASSWORD};TrustServerCertificate=True;MultipleActiveResultSets=True"
+
+          nohup dotnet src/HamzetWasl.Api/bin/Release/net10.0/HamzetWasl.Api.dll \
+            > /tmp/api.log 2>&1 &
+          echo $! > /tmp/api.pid
+
+          for attempt in $(seq 1 60); do
+            if curl -sSf http://127.0.0.1:5080/health > /dev/null; then
+              echo "API is up"
+              break
+            fi
+            sleep 2
+          done
+
+          if ! curl -sSf http://127.0.0.1:5080/health > /dev/null; then
+            echo "::error::the API did not start"
+            cat /tmp/api.log
+            exit 1
+          fi
+
+          curl -sSf http://127.0.0.1:5080/swagger/v1/swagger.json -o /tmp/openapi.generated.json
+          kill "$(cat /tmp/api.pid)" || true
+
+      - name: Compare with docs/openapi.json
+        run: |
+          set -euo pipefail
+          jq -S . docs/openapi.json > /tmp/openapi.committed.json
+          jq -S . /tmp/openapi.generated.json > /tmp/openapi.generated.sorted.json
+          if ! diff -u /tmp/openapi.committed.json /tmp/openapi.generated.sorted.json; then
+            echo "::error::docs/openapi.json is out of date - re-export it and commit the result"
+            exit 1
+          fi
+          echo "docs/openapi.json matches the running API"
+
+  no-secrets:
+    name: No secrets in the repository
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Fail when a real credential is committed
+        run: |
+          set -euo pipefail
+          fail() { echo "::error::$1"; exit 1; }
+
+          # A. The production configuration must not contain literal credentials.
+          PROD=$(jq -r '[paths(scalars) as $p
+                        | select(($p[-1] | tostring | ascii_downcase) | test("signingkey|hashkey|password|secret|apikey|token"))
+                        | getpath($p)] | .[]' src/HamzetWasl.Api/appsettings.json)
+          if [ -n "${PROD}" ]; then
+            fail "appsettings.json contains a literal credential"
+          fi
+
+          # B. The development configuration may only carry DEV-ONLY placeholders.
+          #     (The local Seed block is the documented development admin account.)
+          DEV=$(jq -r '[paths(scalars) as $p
+                       | select(($p[0] | tostring) != "Seed")
+                       | select(($p[-1] | tostring | ascii_downcase) | test("signingkey|hashkey|password|secret|apikey|token"))
+                       | getpath($p)] | .[]' src/HamzetWasl.Api/appsettings.Development.json)
+          for value in ${DEV}; do
+            case "${value}" in
+              *DEV-ONLY*) ;;
+              *) fail "appsettings.Development.json contains a credential that is not marked DEV-ONLY" ;;
+            esac
+          done
+
+          # C. No credential literal anywhere else in the tracked sources.
+          MATCHES=$(git grep -nIE "(password|secret|apikey|api_key|signingkey|hashkey)[\"']?\s*[:=]\s*[\"'][^\"']{8,}[\"']" \
+            -- '*.cs' '*.json' ':!src/HamzetWasl.Api/appsettings.Development.json' ':!docs/*' | grep -v "DEV-ONLY" || true)
+          if [ -n "${MATCHES}" ]; then
+            echo "${MATCHES}"
+            fail "possible secret committed"
+          fi
+
+          echo "no secrets found"

@@ -22,7 +22,19 @@ There is no table or column for refresh tokens, OTP attempt counts, or resend ti
 
 The EF model includes Identity tables that are not part of the 60-table SQL script.
 
-**Default used:** EF Core migrations are the development mechanism; a CI/integration test applies `Hamzet_Wasl_Schema_v2.sql` to a clean database and compares normalised metadata for the 60 domain tables (columns, types, nullability, PKs, FKs, unique indexes, CHECK constraints). `AspNet*` tables and `__EFMigrationsHistory` are ignored.
+**Default used:** **No EF Core migrations are used.** `Hamzet_Wasl_Schema_v2.sql` is the single
+source of truth: it is embedded in `HamzetWasl.Infrastructure` and applied by `SchemaBootstrapper`
+whenever the domain tables are missing. Two tests guard the parity:
+
+- `SchemaMatchesSqlTests` (unit) compares the EF store model with the parsed script for all 60
+  tables: table set, columns (name, type, nullability), primary keys, foreign keys, unique
+  constraints and indexes. `AspNet*` tables are allowlisted; the EF model must not declare a
+  CHECK constraint that the script does not contain.
+- `SchemaAppliedTests` (integration) compares the **applied database** with the script: the 60
+  tables, the CHECK constraints (by the values they allow), the 86 foreign keys, the unique
+  constraints and the 69 indexes.
+
+`AspNet*` tables and `__EFMigrationsHistory` are ignored by the comparison.
 
 ### Q4 — Missing enum values
 

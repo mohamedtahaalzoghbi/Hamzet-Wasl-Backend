@@ -13,19 +13,27 @@ namespace HamzetWasl.IntegrationTests;
 /// </summary>
 public sealed class ApiFixture : IAsyncLifetime
 {
-    private const string LocalDbInstance = "(localdb)\\MSSQLLocalDB";
+    /// <summary>
+    /// Override for CI (and any non-LocalDB host): HW_TEST_SQL_SERVER, HW_TEST_SQL_USER,
+    /// HW_TEST_SQL_PASSWORD. Locally the tests use LocalDB with a trusted connection.
+    /// </summary>
+    private const string ServerVariable = "HW_TEST_SQL_SERVER";
+
+    private const string UserVariable = "HW_TEST_SQL_USER";
+    private const string PasswordVariable = "HW_TEST_SQL_PASSWORD";
+
     private string _databaseName = default!;
     private string _connectionString = default!;
     private string _masterConnectionString = default!;
 
-    public WebApplicationFactory<Program> Factory { get; private set; } = default!;
+    public HamzetWaslWebApplicationFactory Factory { get; private set; } = default!;
     public HttpClient AnonymousClient { get; private set; } = default!;
 
     public async Task InitializeAsync()
     {
         _databaseName = $"HamzetWasl_IT_{Guid.NewGuid():N}"[..40];
-        _masterConnectionString = $"Server={LocalDbInstance};Database=master;Trusted_Connection=True;TrustServerCertificate=True;MultipleActiveResultSets=True";
-        _connectionString = $"Server={LocalDbInstance};Database={_databaseName};Trusted_Connection=True;TrustServerCertificate=True;MultipleActiveResultSets=True";
+        _masterConnectionString = BuildConnectionString("master");
+        _connectionString = BuildConnectionString(_databaseName);
 
         await CreateDatabaseAsync();
 
@@ -42,12 +50,33 @@ public sealed class ApiFixture : IAsyncLifetime
         }
 
         Factory = new HamzetWaslWebApplicationFactory(_connectionString);
-        AnonymousClient = Factory.CreateClient();
+        AnonymousClient = Factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            BaseAddress = new Uri("http://localhost")
+        });
 
         using var scope = Factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<HamzetWaslDbContext>();
         await IdentitySchemaInitializer.InitializeAsync(db);
         await scope.ServiceProvider.GetRequiredService<DatabaseSeeder>().SeedAsync();
+    }
+
+    /// <summary>The connection string of the test database (exposed for catalog assertions).</summary>
+    public string ConnectionString => _connectionString;
+
+    private static string BuildConnectionString(string database)
+    {
+        var server = Environment.GetEnvironmentVariable(ServerVariable);
+        if (string.IsNullOrWhiteSpace(server))
+        {
+            return $"Server=(localdb)\\MSSQLLocalDB;Database={database};Trusted_Connection=True;" +
+                   "TrustServerCertificate=True;MultipleActiveResultSets=True";
+        }
+
+        var user = Environment.GetEnvironmentVariable(UserVariable) ?? "sa";
+        var password = Environment.GetEnvironmentVariable(PasswordVariable) ?? "Password123!";
+        return $"Server={server};Database={database};User Id={user};Password={password};" +
+               "TrustServerCertificate=True;MultipleActiveResultSets=True";
     }
 
     public Task DisposeAsync()
