@@ -46,6 +46,21 @@ public sealed class ErrorHandlingMiddleware
         {
             await WriteAsync(context, ex.StatusCode, ex.Code, ex.Message, ex.Fields);
         }
+        catch (BadHttpRequestException ex)
+        {
+            // Kestrel rejects a body that exceeds the request limit before the action runs.
+            // The contract documents 413 REQUEST_TOO_LARGE for that case.
+            if (ex.StatusCode == StatusCodes.Status413PayloadTooLarge)
+            {
+                await WriteAsync(context, StatusCodes.Status413PayloadTooLarge,
+                    ErrorCodes.RequestTooLarge, ArabicMessages.For(ErrorCodes.RequestTooLarge), null);
+                return;
+            }
+
+            _logger.LogWarning(ex, "Rejected request. TraceId={TraceId}", context.TraceIdentifier);
+            await WriteAsync(context, ex.StatusCode, ErrorCodes.ValidationError,
+                ArabicMessages.For(ErrorCodes.ValidationError), null);
+        }
         catch (Microsoft.EntityFrameworkCore.DbUpdateException ex)
         {
             _logger.LogWarning(ex, "Database update failed. TraceId={TraceId}", context.TraceIdentifier);

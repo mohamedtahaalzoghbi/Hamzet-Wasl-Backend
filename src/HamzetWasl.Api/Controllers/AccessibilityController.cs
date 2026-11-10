@@ -15,15 +15,18 @@ public sealed class AccessibilityController : ApiControllerBase
     public AccessibilityController(IAccessibilityService accessibility) => _accessibility = accessibility;
 
     [HttpGet]
+    [ProducesResponseType(typeof(ApiResponse<AccessibilityResponse>), StatusCodes.Status200OK)]
     public async Task<ActionResult<ApiResponse<AccessibilityResponse>>> Get(CancellationToken ct) =>
         Ok(Envelope(await _accessibility.GetAsync(CurrentUserId, ct)));
 
     [HttpPut]
+    [ProducesResponseType(typeof(ApiResponse<AccessibilityResponse>), StatusCodes.Status200OK)]
     public async Task<ActionResult<ApiResponse<AccessibilityResponse>>> Upsert(
         [FromBody] UpsertAccessibilityRequest request, CancellationToken ct) =>
         Ok(Envelope(await _accessibility.UpsertAsync(CurrentUserId, request, ct)));
 
     [HttpDelete]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
     public async Task<IActionResult> Delete(CancellationToken ct)
     {
         await _accessibility.DeleteAsync(CurrentUserId, ct);

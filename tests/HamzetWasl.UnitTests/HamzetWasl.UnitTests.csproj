@@ -23,6 +23,7 @@
     <ProjectReference Include="..\..\src\HamzetWasl.Domain\HamzetWasl.Domain.csproj" />
     <ProjectReference Include="..\..\src\HamzetWasl.Application\HamzetWasl.Application.csproj" />
     <ProjectReference Include="..\..\src\HamzetWasl.Infrastructure\HamzetWasl.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\HamzetWasl.Api\HamzetWasl.Api.csproj" />
   </ItemGroup>
 
 </Project>

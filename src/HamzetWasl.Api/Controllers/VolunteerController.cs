@@ -16,30 +16,36 @@ public sealed class VolunteerController : ApiControllerBase
     public VolunteerController(IVolunteerService volunteers) => _volunteers = volunteers;
 
     [HttpGet("volunteer-profile")]
+    [ProducesResponseType(typeof(ApiResponse<VolunteerProfileResponse>), StatusCodes.Status200OK)]
     public async Task<ActionResult<ApiResponse<VolunteerProfileResponse>>> GetProfile(CancellationToken ct) =>
         Ok(Envelope(await _volunteers.GetProfileAsync(CurrentUserId, ct)));
 
     [HttpPut("volunteer-profile")]
+    [ProducesResponseType(typeof(ApiResponse<VolunteerProfileResponse>), StatusCodes.Status200OK)]
     public async Task<ActionResult<ApiResponse<VolunteerProfileResponse>>> UpdateProfile(
         [FromBody] UpdateVolunteerProfileRequest request, CancellationToken ct) =>
         Ok(Envelope(await _volunteers.UpdateProfileAsync(CurrentUserId, request, ct)));
 
     [HttpGet("volunteer-location")]
+    [ProducesResponseType(typeof(ApiResponse<VolunteerLocationResponse>), StatusCodes.Status200OK)]
     public async Task<ActionResult<ApiResponse<VolunteerLocationResponse>>> GetLocation(CancellationToken ct) =>
         Ok(Envelope(await _volunteers.GetLocationAsync(CurrentUserId, ct)));
 
     [HttpPut("volunteer-location")]
+    [ProducesResponseType(typeof(ApiResponse<VolunteerLocationResponse>), StatusCodes.Status200OK)]
     public async Task<ActionResult<ApiResponse<VolunteerLocationResponse>>> UpdateLocation(
         [FromBody] VolunteerLocationRequest request, CancellationToken ct) =>
         Ok(Envelope(await _volunteers.UpdateLocationAsync(CurrentUserId, request, ct)));
 
     [HttpGet("verification")]
+    [ProducesResponseType(typeof(ApiResponse<VerificationResponse>), StatusCodes.Status200OK)]
     public async Task<ActionResult<ApiResponse<VerificationResponse>>> GetVerification(CancellationToken ct) =>
         Ok(Envelope(await _volunteers.GetVerificationAsync(CurrentUserId, ct)));
 
     [HttpPost("verification/evidence")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
     [EnableRateLimiting("uploads")]
-    [RequestSizeLimit(10 * 1024 * 1024)]
+    [RequestSizeLimit(11 * 1024 * 1024)]
     public async Task<IActionResult> UploadEvidence(
         [FromForm] string evidenceType, IFormFile file, CancellationToken ct)
     {
@@ -50,6 +56,7 @@ public sealed class VolunteerController : ApiControllerBase
     }
 
     [HttpPut("verification/social-links")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
     public async Task<IActionResult> SetSocialLinks(
         [FromBody] SocialLinksRequest request, CancellationToken ct)
     {
@@ -58,38 +65,46 @@ public sealed class VolunteerController : ApiControllerBase
     }
 
     [HttpGet("/api/v1/interview-slots")]
+    [ProducesResponseType(typeof(ApiResponse<IReadOnlyList<InterviewSlotDto>>), StatusCodes.Status200OK)]
     public async Task<ActionResult<ApiResponse<IReadOnlyList<InterviewSlotDto>>>> GetInterviewSlots(
         [FromQuery] DateOnly? date, CancellationToken ct) =>
         Ok(Envelope(await _volunteers.GetInterviewSlotsAsync(date, ct)));
 
     [HttpPost("verification/interview")]
+    [ProducesResponseType(typeof(ApiResponse<VerificationResponse>), StatusCodes.Status200OK)]
     public async Task<ActionResult<ApiResponse<VerificationResponse>>> BookInterview(
         [FromBody] BookInterviewRequest request, CancellationToken ct) =>
         Ok(Envelope(await _volunteers.BookInterviewAsync(CurrentUserId, request.InterviewSlotId, ct)));
 
     [HttpPut("verification/interview")]
+    [ProducesResponseType(typeof(ApiResponse<VerificationResponse>), StatusCodes.Status200OK)]
     public async Task<ActionResult<ApiResponse<VerificationResponse>>> ChangeInterview(
         [FromBody] BookInterviewRequest request, CancellationToken ct) =>
         Ok(Envelope(await _volunteers.ChangeInterviewAsync(CurrentUserId, request.InterviewSlotId, ct)));
 
     [HttpDelete("verification/interview")]
+    [ProducesResponseType(typeof(ApiResponse<VerificationResponse>), StatusCodes.Status200OK)]
     public async Task<ActionResult<ApiResponse<VerificationResponse>>> CancelInterview(CancellationToken ct) =>
         Ok(Envelope(await _volunteers.CancelInterviewAsync(CurrentUserId, ct)));
 
     [HttpGet("availability")]
+    [ProducesResponseType(typeof(ApiResponse<IReadOnlyList<AvailabilitySlotDto>>), StatusCodes.Status200OK)]
     public async Task<ActionResult<ApiResponse<IReadOnlyList<AvailabilitySlotDto>>>> GetAvailability(CancellationToken ct) =>
         Ok(Envelope(await _volunteers.GetAvailabilityAsync(CurrentUserId, ct)));
 
     [HttpPut("availability")]
+    [ProducesResponseType(typeof(ApiResponse<IReadOnlyList<AvailabilitySlotDto>>), StatusCodes.Status200OK)]
     public async Task<ActionResult<ApiResponse<IReadOnlyList<AvailabilitySlotDto>>>> SetAvailability(
         [FromBody] SetAvailabilityRequest request, CancellationToken ct) =>
         Ok(Envelope(await _volunteers.SetAvailabilityAsync(CurrentUserId, request.Slots, ct)));
 
     [HttpGet("training")]
+    [ProducesResponseType(typeof(ApiResponse<IReadOnlyList<TrainingModuleDto>>), StatusCodes.Status200OK)]
     public async Task<ActionResult<ApiResponse<IReadOnlyList<TrainingModuleDto>>>> GetTraining(CancellationToken ct) =>
         Ok(Envelope(await _volunteers.GetTrainingAsync(CurrentUserId, ct)));
 
     [HttpPost("training/{moduleId:guid}/attempts")]
+    [ProducesResponseType(typeof(ApiResponse<TrainingAttemptDto>), StatusCodes.Status200OK)]
     public async Task<ActionResult<ApiResponse<TrainingAttemptDto>>> SubmitTrainingAttempt(
         Guid moduleId, [FromBody] SubmitTrainingAttemptRequest request, CancellationToken ct) =>
         Ok(Envelope(await _volunteers.SubmitTrainingAttemptAsync(CurrentUserId, moduleId, request.Score, ct)));

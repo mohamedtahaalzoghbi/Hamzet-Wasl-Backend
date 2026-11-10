@@ -15,7 +15,7 @@ public sealed class AdminService : IAdminService
     private readonly HamzetWaslDbContext _db;
     private readonly IFileStorage _storage;
     private readonly StorageKeyProtector _protector;
-    private readonly INotificationPublisher _publisher;
+    private readonly INotificationService _notifications;
     private readonly IClock _clock;
     private readonly StorageOptions _storageOptions;
     private readonly RetentionOptions _retention;
@@ -24,7 +24,7 @@ public sealed class AdminService : IAdminService
         HamzetWaslDbContext db,
         IFileStorage storage,
         StorageKeyProtector protector,
-        INotificationPublisher publisher,
+        INotificationService notifications,
         IClock clock,
         IOptions<StorageOptions> storageOptions,
         IOptions<RetentionOptions> retention)
@@ -32,7 +32,7 @@ public sealed class AdminService : IAdminService
         _db = db;
         _storage = storage;
         _protector = protector;
-        _publisher = publisher;
+        _notifications = notifications;
         _clock = clock;
         _storageOptions = storageOptions.Value;
         _retention = retention.Value;
@@ -131,15 +131,15 @@ public sealed class AdminService : IAdminService
         AddAudit(reviewerId, request.Approve ? AdminActions.ApproveVolunteer : AdminActions.RejectVolunteer,
             "verification_review", reviewId, AuditOutcomes.Success, now);
 
-        var notification = AddNotification(
+        await _db.SaveChangesAsync(ct);
+
+        await _notifications.NotifyAsync(
             review.VolunteerId,
             request.Approve ? NotificationTypes.VerificationApproved : NotificationTypes.VerificationRejected,
             request.Approve ? "تم اعتماد حسابك كمتطوع." : "تم رفض طلب التحقق. يمكنك إعادة التقديم.",
-            now);
-
-        await _db.SaveChangesAsync(ct);
-        await _publisher.PublishAsync(notification.RecipientId, notification.NotificationType,
-            notification.Channel, notification.TextBody, ct);
+            "verification_review",
+            reviewId,
+            ct);
     }
 
     public async Task<PagedResult<OrganizationReviewListItemDto>> GetOrganizationReviewsAsync(
@@ -221,15 +221,15 @@ public sealed class AdminService : IAdminService
         AddAudit(reviewerId, request.Approve ? AdminActions.ApproveOrganization : AdminActions.RejectOrganization,
             "organization_review", reviewId, AuditOutcomes.Success, now);
 
-        var notification = AddNotification(
+        await _db.SaveChangesAsync(ct);
+
+        await _notifications.NotifyAsync(
             review.Organization.OwnerUserId,
             request.Approve ? NotificationTypes.OrganizationApproved : NotificationTypes.OrganizationRejected,
             request.Approve ? "تم اعتماد مؤسستك. يمكنك الآن نشر الفرص والخدمات." : "تم رفض طلب المؤسسة. راجع الملاحظات وأعد التقديم.",
-            now);
-
-        await _db.SaveChangesAsync(ct);
-        await _publisher.PublishAsync(notification.RecipientId, notification.NotificationType,
-            notification.Channel, notification.TextBody, ct);
+            "organization_review",
+            reviewId,
+            ct);
     }
 
     public async Task<IReadOnlyList<InterviewSlotAdminDto>> GetInterviewSlotsAsync(CancellationToken ct = default)
@@ -318,6 +318,16 @@ public sealed class AdminService : IAdminService
         AddAudit(adminId, request.Suspend ? AdminActions.SuspendUser : AdminActions.ReactivateUser,
             "user_account", userId, AuditOutcomes.Success, now);
         await _db.SaveChangesAsync(ct);
+
+        await _notifications.NotifyAsync(
+            userId,
+            request.Suspend ? NotificationTypes.AccountSuspended : NotificationTypes.AccountReactivated,
+            request.Suspend
+                ? "تم إيقاف حسابك. تواصل مع الدعم إن كنت ترى أن هذا خطأ."
+                : "تمت إعادة تفعيل حسابك.",
+            "user_account",
+            userId,
+            ct);
     }
 
     public async Task<PagedResult<DeletionRequestDto>> GetDeletionRequestsAsync(
@@ -376,21 +386,6 @@ public sealed class AdminService : IAdminService
             .Select(a => new AdminAuditDto(a.AuditId, a.ActorUserId, a.Action, a.TargetType, a.TargetId, a.Outcome, a.OccurredAt))
             .ToListAsync(ct);
         return new PagedResult<AdminAuditDto>(items, page, pageSize, total);
-    }
-
-    private Notification AddNotification(Guid recipientId, string type, string text, DateTime now)
-    {
-        var notification = new Notification
-        {
-            NotificationId = Guid.NewGuid(),
-            RecipientId = recipientId,
-            NotificationType = type,
-            Channel = NotificationChannels.InApp,
-            TextBody = text,
-            CreatedAt = now
-        };
-        _db.Notifications.Add(notification);
-        return notification;
     }
 
     private void AddAudit(Guid actorId, string action, string targetType, Guid targetId, string outcome, DateTime now)

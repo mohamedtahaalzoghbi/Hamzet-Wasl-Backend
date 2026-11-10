@@ -53,3 +53,30 @@ public sealed class GoogleOptions
     public const string SectionName = "Google";
     public string? ClientId { get; set; }
 }
+
+/// <summary>
+/// Limits of the fixed window rate limiter. They are configuration so a deployment (or a
+/// test host) can tune them without touching the pipeline.
+/// </summary>
+public sealed class RateLimitingOptions
+{
+    public const string SectionName = "RateLimiting";
+
+    /// <summary>Requests per minute for the authentication endpoints, per identity or IP.</summary>
+    public int AuthPermitLimit { get; set; } = 20;
+
+    /// <summary>Window of the authentication limit, in minutes.</summary>
+    public int AuthWindowMinutes { get; set; } = 1;
+
+    /// <summary>Requests per window for the OTP endpoints, per user.</summary>
+    public int OtpPermitLimit { get; set; } = 6;
+
+    /// <summary>Window of the OTP limit, in minutes.</summary>
+    public int OtpWindowMinutes { get; set; } = 10;
+
+    /// <summary>Requests per window for the upload endpoints, per user.</summary>
+    public int UploadPermitLimit { get; set; } = 30;
+
+    /// <summary>Window of the upload limit, in hours.</summary>
+    public int UploadWindowHours { get; set; } = 1;
+}

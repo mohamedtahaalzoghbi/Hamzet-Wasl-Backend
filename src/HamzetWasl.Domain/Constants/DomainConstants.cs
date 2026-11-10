@@ -192,6 +192,8 @@ public static class NotificationTypes
     public const string InterviewBooked = "interview_booked";
     public const string InterviewChanged = "interview_changed";
     public const string InterviewCancelled = "interview_cancelled";
+    public const string AccountSuspended = "account_suspended";
+    public const string AccountReactivated = "account_reactivated";
 }
 
 public static class DeletionRequestStatuses

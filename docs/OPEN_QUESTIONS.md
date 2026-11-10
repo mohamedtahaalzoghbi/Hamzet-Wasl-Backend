@@ -46,7 +46,12 @@ Many status columns have no SQL `CHECK`. Proposed values are in §C below.
 
 The master prompt says exactly one `need_type_id`; the Figma export says “one or more”.
 
-**Default used:** Exactly one `need_type_id`. The API rejects more than one. The client must use a single-select interface or map a multi-select to one primary choice.
+**Default used:** Exactly one `need_type_id` in the table. The API rejects more than one in the
+`needType` field. Several simultaneous needs are expressed through `manual_overrides.needTypes`
+(`["visual","hearing"]`), and the calculated `effectivePreset` merges the need-type defaults
+without overwriting the user's own preferences (see `docs/API_CONTRACT.md` §5). The client must
+use a single-select interface for the stored need type or map a multi-select to the
+`manual_overrides` list.
 
 ### Q6 — OTP length
 
@@ -121,6 +126,25 @@ There are no tables for governorates, areas, business fields, or employee ranges
 ### Q20 — CI
 
 **Default used:** LocalDB for local integration tests; SQL Server service container in GitHub Actions.
+
+### Q21 — Creating a deletion request
+
+MASTER_PROMPT §1.4 requires the deletion to go through the `DELETION_REQUEST` flow. Phase 1
+implements the admin side (the queue and the resolve with the anonymisation) but **no endpoint
+creates the request**, so the admin queue stays empty until the account screen of the app exists.
+
+**Default used:** Nothing is built without the matching screen. The pending work is a
+`POST /me/deletion-request` (and `DELETE /me/deletion-request/{id}`) with the consent rules of
+the Figma screens; it must be added before the account-deletion feature is announced.
+
+### Q22 — Listing the notifications
+
+Phase 1 stores the notifications in `NOTIFICATION` and pushes them over SignalR, but there is no
+`GET /me/notifications` endpoint and `read_at` is never set.
+
+**Default used:** Nothing is built without the matching screen. The pending work is a paged
+`GET /me/notifications` with a mark-as-read action, needed as soon as the app shows a
+notification centre (and required for Phase 2, where the help module produces many events).
 
 ## B. Assumptions
 

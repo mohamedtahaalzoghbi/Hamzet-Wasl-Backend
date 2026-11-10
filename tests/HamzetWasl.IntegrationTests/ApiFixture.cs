@@ -70,6 +70,15 @@ public sealed class ApiFixture : IAsyncLifetime
     /// <summary>The connection string of the test database (exposed for catalog assertions).</summary>
     public string ConnectionString => _connectionString;
 
+    /// <summary>The captured OTP messages (email and SMS).</summary>
+    public CapturingMessageSender Messages => Factory.Messages;
+
+    /// <summary>Creates a client bound to the in-memory test server.</summary>
+    public HttpClient CreateClient() => Factory.CreateClient(new WebApplicationFactoryClientOptions
+    {
+        BaseAddress = new Uri("http://localhost")
+    });
+
     private static string BuildConnectionString(string database)
     {
         var server = Environment.GetEnvironmentVariable(ServerVariable);

@@ -16,6 +16,12 @@ public sealed record OrganizationDocumentDto(
     string DocumentType,
     DateTime UploadedAt);
 
+/// <summary>Answer of the logo upload: the public URL of the stored image.</summary>
+public sealed record OrganizationLogoResponse(string LogoUrl);
+
+/// <summary>Answer of the cover upload: the public URL of the stored image.</summary>
+public sealed record OrganizationCoverResponse(string CoverUrl);
+
 public sealed record OrganizationResponse(
     Guid OrganizationId,
     string OrganizationType,

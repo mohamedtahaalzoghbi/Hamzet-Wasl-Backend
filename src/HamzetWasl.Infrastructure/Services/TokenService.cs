@@ -2,6 +2,7 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
+using HamzetWasl.Application.Common;
 using HamzetWasl.Application.Contracts.Auth;
 using HamzetWasl.Application.Interfaces;
 using HamzetWasl.Infrastructure.Configuration;
@@ -43,7 +44,8 @@ public sealed class TokenService : ITokenService
             new("phoneVerified", session.PhoneVerified.ToString().ToLowerInvariant()),
             new(JwtRegisteredClaimNames.Email, session.Email),
             new("name", session.DisplayName ?? string.Empty),
-            new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
+            new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
+            new(TokenPurposes.Claim, TokenPurposes.Access)
         };
 
         var token = new JwtSecurityToken(
@@ -69,7 +71,7 @@ public sealed class TokenService : ITokenService
             [
                 new Claim(JwtRegisteredClaimNames.Sub, userId.ToString()),
                 new Claim(JwtRegisteredClaimNames.Jti, tokenId.ToString()),
-                new Claim("purpose", "refresh")
+                new Claim(TokenPurposes.Claim, TokenPurposes.Refresh)
             ],
             notBefore: now,
             expires: expires,
@@ -80,7 +82,7 @@ public sealed class TokenService : ITokenService
 
     public RefreshTokenPayload? ValidateRefreshToken(string token)
     {
-        var principal = Validate(token, "refresh");
+        var principal = Validate(token, TokenPurposes.Refresh);
         if (principal is null) return null;
 
         var sub = principal.FindFirstValue(JwtRegisteredClaimNames.Sub) ?? principal.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -112,7 +114,7 @@ public sealed class TokenService : ITokenService
                 new Claim(JwtRegisteredClaimNames.Email, email),
                 new Claim("name", name ?? string.Empty),
                 new Claim("google_sub", googleSubject),
-                new Claim("purpose", "google_registration")
+                new Claim(TokenPurposes.Claim, TokenPurposes.GoogleRegistration)
             ],
             notBefore: now,
             expires: now.AddMinutes(_options.GoogleTicketMinutes),
@@ -123,7 +125,7 @@ public sealed class TokenService : ITokenService
 
     public GoogleRegistrationTicketPayload? ValidateGoogleRegistrationTicket(string ticket)
     {
-        var principal = Validate(ticket, "google_registration");
+        var principal = Validate(ticket, TokenPurposes.GoogleRegistration);
         if (principal is null) return null;
 
         var email = principal.FindFirstValue(JwtRegisteredClaimNames.Email);
@@ -156,7 +158,7 @@ public sealed class TokenService : ITokenService
                 RoleClaimType = "role"
             }, out _);
 
-            return principal.FindFirstValue("purpose") == purpose ? principal : null;
+            return principal.FindFirstValue(TokenPurposes.Claim) == purpose ? principal : null;
         }
         catch (SecurityTokenException)
         {

@@ -16,6 +16,7 @@ public sealed class VolunteerService : IVolunteerService
     private readonly HamzetWaslDbContext _db;
     private readonly IFileStorage _storage;
     private readonly StorageKeyProtector _protector;
+    private readonly INotificationService _notifications;
     private readonly IClock _clock;
     private readonly RetentionOptions _retention;
 
@@ -23,12 +24,14 @@ public sealed class VolunteerService : IVolunteerService
         HamzetWaslDbContext db,
         IFileStorage storage,
         StorageKeyProtector protector,
+        INotificationService notifications,
         IClock clock,
         IOptions<RetentionOptions> retention)
     {
         _db = db;
         _storage = storage;
         _protector = protector;
+        _notifications = notifications;
         _clock = clock;
         _retention = retention.Value;
     }
@@ -220,6 +223,15 @@ public sealed class VolunteerService : IVolunteerService
 
         await _db.SaveChangesAsync(ct);
         await transaction.CommitAsync(ct);
+
+        await _notifications.NotifyAsync(
+            userId,
+            NotificationTypes.InterviewBooked,
+            "تم حجز موعد المقابلة بنجاح.",
+            "interview_slot",
+            slotId,
+            ct);
+
         return BuildVerification(profile, await GetLatestReviewAsync(userId, ct));
     }
 
@@ -263,6 +275,14 @@ public sealed class VolunteerService : IVolunteerService
         await _db.SaveChangesAsync(ct);
         await transaction.CommitAsync(ct);
 
+        await _notifications.NotifyAsync(
+            userId,
+            NotificationTypes.InterviewChanged,
+            "تم تغيير موعد المقابلة.",
+            "interview_slot",
+            slotId,
+            ct);
+
         return BuildVerification(profile, await GetLatestReviewAsync(userId, ct));
     }
 
@@ -292,6 +312,14 @@ public sealed class VolunteerService : IVolunteerService
         review.DecidedAt = null;
         profile.VerificationStatus = VerificationStatuses.Unverified;
         await _db.SaveChangesAsync(ct);
+
+        await _notifications.NotifyAsync(
+            userId,
+            NotificationTypes.InterviewCancelled,
+            "تم إلغاء موعد المقابلة.",
+            "interview_slot",
+            null,
+            ct);
 
         return BuildVerification(profile, review);
     }

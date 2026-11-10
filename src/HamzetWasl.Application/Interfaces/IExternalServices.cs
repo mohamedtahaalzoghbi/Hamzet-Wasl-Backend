@@ -21,8 +21,3 @@ public interface IGoogleTokenValidator
 {
     Task<GoogleUserInfo?> ValidateAsync(string idToken, CancellationToken ct = default);
 }
-
-public interface INotificationPublisher
-{
-    Task PublishAsync(Guid userId, string notificationType, string channel, string? text, CancellationToken ct = default);
-}

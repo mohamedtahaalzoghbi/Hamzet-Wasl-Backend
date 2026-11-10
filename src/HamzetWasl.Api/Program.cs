@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
@@ -8,17 +9,20 @@ using HamzetWasl.Api.Serialization;
 using System.Text.Json.Serialization;
 using System.Threading.RateLimiting;
 using FluentValidation.AspNetCore;
+using HamzetWasl.Api.Filters;
 using HamzetWasl.Api.Middleware;
+using HamzetWasl.Api.OpenApi;
 using HamzetWasl.Api.Realtime;
 using HamzetWasl.Application;
 using HamzetWasl.Application.Common;
-using HamzetWasl.Application.Interfaces;
-using HamzetWasl.Infrastructure;
+using HamzetWasl.Application.Interfaces;using HamzetWasl.Infrastructure;
 using HamzetWasl.Infrastructure.Configuration;
 using HamzetWasl.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.FileProviders;
@@ -54,15 +58,8 @@ try
     builder.Services.AddApplication();
     builder.Services.AddInfrastructure(builder.Configuration);
 
-    builder.Services.AddControllers()
-        .AddJsonOptions(options =>
-        {
-            options.JsonSerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
-            options.JsonSerializerOptions.DictionaryKeyPolicy = JsonNamingPolicy.CamelCase;
-            options.JsonSerializerOptions.DefaultIgnoreCondition = JsonIgnoreCondition.Never;
-            options.JsonSerializerOptions.Encoder = JavaScriptEncoder.Create(UnicodeRanges.All);
-            options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.SnakeCaseLower));
-        });
+    builder.Services.AddControllers(options => options.Filters.Add<RequestSizeLimitFilter>())
+        .AddJsonOptions(options => JsonDefaults.Configure(options.JsonSerializerOptions));
 
     builder.Services.AddFluentValidationAutoValidation();
     builder.Services.AddFluentValidationClientsideAdapters();
@@ -71,6 +68,17 @@ try
     {
         options.InvalidModelStateResponseFactory = context =>
         {
+            // A body that exceeds the request limit is reported by the form reader as a model
+            // state error. The contract documents 413 REQUEST_TOO_LARGE and no framework text.
+            if (context.ModelState.Any(kv => kv.Value is not null && IsRequestTooLarge(kv.Value)))
+            {
+                var tooLarge = ApiResponse<object?>.Fail(
+                    new ApiError(ErrorCodes.RequestTooLarge, ArabicMessages.For(ErrorCodes.RequestTooLarge), null),
+                    context.HttpContext.TraceIdentifier);
+
+                return new ObjectResult(tooLarge) { StatusCode = StatusCodes.Status413PayloadTooLarge };
+            }
+
             var fields = context.ModelState
                 .Where(kv => kv.Value is { Errors.Count: > 0 })
                 .ToDictionary(
@@ -125,6 +133,11 @@ try
                 : "index";
             return $"{controller}_{action}".ToLowerInvariant();
         });
+
+        // The generated document must describe the API as it really behaves: the error
+        // envelope, the public endpoints and the allowed enum values.
+        options.OperationFilter<ApiContractOperationFilter>();
+        options.SchemaFilter<ApiEnumSchemaFilter>();
     });
 
     var jwt = builder.Configuration.GetSection(JwtOptions.SectionName).Get<JwtOptions>()
@@ -162,6 +175,19 @@ try
                         context.HttpContext.Request.Path.StartsWithSegments("/hubs/notifications"))
                     {
                         context.Token = accessToken;
+                    }
+
+                    return Task.CompletedTask;
+                },
+                OnTokenValidated = context =>
+                {
+                    // Only access tokens may authenticate a request. Refresh tokens and
+                    // Google registration tickets are bound to their own flow and must
+                    // never be usable as a bearer credential.
+                    var purpose = context.Principal?.FindFirst(TokenPurposes.Claim)?.Value;
+                    if (!string.Equals(purpose, TokenPurposes.Access, StringComparison.Ordinal))
+                    {
+                        context.Fail("The token is not an access token.");
                     }
 
                     return Task.CompletedTask;
@@ -209,32 +235,37 @@ try
     builder.Services.AddRateLimiter(options =>
     {
         options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+
+        var limits = builder.Configuration.GetSection(RateLimitingOptions.SectionName).Get<RateLimitingOptions>()
+                     ?? new RateLimitingOptions();
+
+        // The partition key is the authenticated user when the request carries a token and
+        // the remote IP otherwise. The rate limiter runs *after* the authentication
+        // middleware so that the user identity is available (see the pipeline below).
         options.AddPolicy("auth", http => RateLimitPartition.GetFixedWindowLimiter(
-            http.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            PartitionKey(http),
             _ => new FixedWindowRateLimiterOptions
             {
-                PermitLimit = 20,
-                Window = TimeSpan.FromMinutes(1),
+                PermitLimit = limits.AuthPermitLimit,
+                Window = TimeSpan.FromMinutes(limits.AuthWindowMinutes),
                 QueueLimit = 0
             }));
 
         options.AddPolicy("otp", http => RateLimitPartition.GetFixedWindowLimiter(
-            http.User.FindFirstValue(ClaimTypes.NameIdentifier) ??
-            http.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            PartitionKey(http),
             _ => new FixedWindowRateLimiterOptions
             {
-                PermitLimit = 6,
-                Window = TimeSpan.FromMinutes(10),
+                PermitLimit = limits.OtpPermitLimit,
+                Window = TimeSpan.FromMinutes(limits.OtpWindowMinutes),
                 QueueLimit = 0
             }));
 
         options.AddPolicy("uploads", http => RateLimitPartition.GetFixedWindowLimiter(
-            http.User.FindFirstValue(ClaimTypes.NameIdentifier) ??
-            http.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            PartitionKey(http),
             _ => new FixedWindowRateLimiterOptions
             {
-                PermitLimit = 30,
-                Window = TimeSpan.FromHours(1),
+                PermitLimit = limits.UploadPermitLimit,
+                Window = TimeSpan.FromHours(limits.UploadWindowHours),
                 QueueLimit = 0
             }));
 
@@ -242,6 +273,15 @@ try
         {
             context.HttpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;
             context.HttpContext.Response.ContentType = "application/json; charset=utf-8";
+
+            // The contract promises a Retry-After header so clients can back off instead of
+            // hammering the endpoint.
+            if (context.Lease.TryGetMetadata(MetadataName.RetryAfter, out var retryAfter))
+            {
+                var seconds = Math.Max(1, (int)Math.Ceiling(retryAfter.TotalSeconds));
+                context.HttpContext.Response.Headers.RetryAfter = seconds.ToString(CultureInfo.InvariantCulture);
+            }
+
             var response = ApiResponse<object?>.Fail(
                 new ApiError(ErrorCodes.RateLimited, ArabicMessages.For(ErrorCodes.RateLimited)),
                 context.HttpContext.TraceIdentifier);
@@ -250,12 +290,26 @@ try
         };
     });
 
+    static string PartitionKey(HttpContext http) =>
+        http.User.FindFirstValue(ClaimTypes.NameIdentifier)
+        ?? http.User.FindFirstValue("sub")
+        ?? http.Connection.RemoteIpAddress?.ToString()
+        ?? "unknown";
+
     var origins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
                   ?? ["http://localhost:3000", "http://localhost:5173"];
     builder.Services.AddCors(options => options.AddPolicy("Default", policy =>
         policy.WithOrigins(origins).AllowAnyHeader().AllowAnyMethod().AllowCredentials()));
 
     var app = builder.Build();
+
+    // The forwarded headers must be read first: behind a reverse proxy the rate limiter and
+    // the HTTPS redirection need the real client address and protocol.
+    app.UseForwardedHeaders(new ForwardedHeadersOptions
+    {
+        ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto,
+        ForwardLimit = 1
+    });
 
     app.UseMiddleware<TraceIdMiddleware>();
     app.UseMiddleware<ErrorHandlingMiddleware>();
@@ -268,12 +322,15 @@ try
         await next();
     });
 
-    app.UseSwagger();
-    app.UseSwaggerUI(options =>
+    if (app.Configuration.GetValue<bool>("Swagger:Enabled") || app.Environment.IsDevelopment())
     {
-        options.SwaggerEndpoint("/swagger/v1/swagger.json", "Hamzet Wasl API v1");
-        options.DocumentTitle = "Hamzet Wasl API";
-    });
+        app.UseSwagger();
+        app.UseSwaggerUI(options =>
+        {
+            options.SwaggerEndpoint("/swagger/v1/swagger.json", "Hamzet Wasl API v1");
+            options.DocumentTitle = "Hamzet Wasl API";
+        });
+    }
 
     var publicRoot = Path.Combine(app.Environment.ContentRootPath, "App_Data", "uploads", "public");
     Directory.CreateDirectory(publicRoot);
@@ -285,8 +342,10 @@ try
 
     app.UseHttpsRedirection();
     app.UseCors("Default");
-    app.UseRateLimiter();
     app.UseAuthentication();
+    // The rate limiter runs after the authentication middleware so the policies can be
+    // partitioned per user and not only per IP.
+    app.UseRateLimiter();
     app.UseAuthorization();
     app.UseMiddleware<SuspendedUserMiddleware>();
 
@@ -334,5 +393,14 @@ static string ToCamelCaseField(string key)
     if (simple.Contains('.', StringComparison.Ordinal)) return simple;
     return JsonNamingPolicy.CamelCase.ConvertName(simple);
 }
+
+/// <summary>
+/// Detects the model state error the form reader produces when the request body exceeds
+/// the allowed size. The framework message is never returned to the client.
+/// </summary>
+static bool IsRequestTooLarge(Microsoft.AspNetCore.Mvc.ModelBinding.ModelStateEntry entry) =>
+    entry.Errors.Any(error =>
+        error.Exception is BadHttpRequestException or InvalidDataException ||
+        (error.ErrorMessage?.Contains("too large", StringComparison.OrdinalIgnoreCase) ?? false));
 
 public partial class Program;

@@ -210,15 +210,28 @@ public sealed class AccessibilityService : IAccessibilityService
 
     private static AccessibilityResponse Map(AccessibilityProfile profile)
     {
-        var preset = new AccessibilityPresetDto(
+        // The effective preset is calculated, not copied: need-type defaults fill the values the
+        // user has not chosen, the user's own preferences win over them and the manual
+        // overrides win over everything.
+        var preset = Domain.Rules.AccessibilityPresets.Calculate(
+            profile.NeedType?.Name,
             profile.Theme,
             profile.FontScale,
             profile.ReducedMotion,
             profile.InteractionMode,
             profile.NotificationMode,
-            profile.Theme == Domain.Constants.AccessibilityThemes.HighContrast,
-            "rtl",
-            profile.NeedType?.Name);
+            profile.ManualOverrides);
+
+        var presetDto = new AccessibilityPresetDto(
+            preset.Values.Theme,
+            preset.Values.FontScale,
+            preset.Values.ReducedMotion,
+            preset.Values.InteractionMode,
+            preset.Values.NotificationMode,
+            preset.Values.HighContrast,
+            preset.Values.TextDirection,
+            profile.NeedType?.Name,
+            preset.NeedTypes);
 
         return new AccessibilityResponse(
             profile.UserId,
@@ -232,6 +245,6 @@ public sealed class AccessibilityService : IAccessibilityService
                 ? null
                 : System.Text.Json.JsonDocument.Parse(profile.ManualOverrides).RootElement.Clone(),
             profile.UpdatedAt,
-            preset);
+            presetDto);
     }
 }

@@ -14,6 +14,10 @@ public sealed class FilesController : ApiControllerBase
     public FilesController(IFileStorage storage) => _storage = storage;
 
     [HttpGet]
+    [Produces("application/octet-stream", "image/png", "image/jpeg", "application/pdf", "audio/mpeg", "video/mp4")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> Get(
         [FromQuery] string key, [FromQuery] long expires, [FromQuery] string signature,
         CancellationToken ct)

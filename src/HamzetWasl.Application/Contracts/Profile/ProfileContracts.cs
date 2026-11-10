@@ -18,6 +18,9 @@ public sealed record ProfileResponse(
     string? AvatarUrl,
     string Visibility);
 
+/// <summary>Answer of the avatar upload: the public URL of the stored image.</summary>
+public sealed record AvatarResponse(string AvatarUrl);
+
 public sealed class SetInterestsRequest
 {
     public IReadOnlyList<int> InterestIds { get; set; } = Array.Empty<int>();
@@ -47,7 +50,8 @@ public sealed record AccessibilityPresetDto(
     string NotificationMode,
     bool HighContrast,
     string TextDirection,
-    string? NeedType);
+    string? NeedType,
+    IReadOnlyList<string> NeedTypes);
 
 public sealed record AccessibilityResponse(
     Guid UserId,

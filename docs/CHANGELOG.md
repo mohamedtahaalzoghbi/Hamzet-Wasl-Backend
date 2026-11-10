@@ -19,12 +19,43 @@ Published contract: `docs/openapi.json` (OpenAPI 3.0.4) and `docs/API_CONTRACT.m
 | Files | signed private file access |
 | Realtime | `/hubs/notifications` |
 
-### Changes inside v1 (before the first client integration)
+### The P0 hardening round (before the first client integration)
+
+Security and contract fixes, all covered by regression tests:
+
+- **Access tokens only**: the tokens carry a `purpose` claim and the bearer pipeline rejects a
+  refresh token or a Google registration ticket (401). The refresh rotation and the logout
+  revocation are unchanged.
+- **UTC everywhere**: every timestamp is serialised with the `Z` suffix, including the values
+  that are read back from SQL Server (`DATETIME2` is materialised without a `Kind`).
+- **OpenAPI accuracy**: the document now carries the real status codes (201 for the creations,
+  204 for the empty answers), the common error responses with the standard envelope, the correct
+  bearer requirement per operation (51 protected, 16 public) and the allowed values of the
+  enumerated fields.
+- **SignalR contract**: the client method is `notificationReceived` and the payload is
+  `{id, type, titleAr, bodyAr, createdAt, payloadJson}`. The interview events and the suspension
+  are published now, so every documented event really happens.
+- **Accessibility preset**: `effectivePreset` is calculated (need-type defaults → the user's own
+  preferences → manual overrides) and supports several needs through `manualOverrides.needTypes`.
+- **Upload limits**: an oversized file answers 413 `FILE_TOO_LARGE`, an oversized request answers
+  413 `REQUEST_TOO_LARGE`, and no framework generated English message reaches the client.
+- **Rate limiting**: the limiter runs after the authentication (so the limits are per identity),
+  the forwarded headers are honoured, and the 429 answer carries `Retry-After`.
+- **Account lockout**: five failed logins lock the account for 15 minutes.
+- **Phone ownership**: the number is only written to the account after the code proves it.
+- **Enumeration**: the reset-password endpoint answers the same way for an unknown address, and
+  the phone endpoint no longer reveals which numbers are registered.
+- **Logs and exposure**: Serilog never writes the request URLs (they carry the file signatures and
+  the SignalR token), the Swagger document is only served in development, and no email or phone
+  reaches the log file.
+
+### Earlier changes inside v1
 
 - `POST /me/verification/evidence` (was documented as `PUT`): the evidence type is part of the
   multipart body (`evidenceType` + `file`).
-- Admin decisions now **require** `notes` when rejecting (`VALIDATION_ERROR` otherwise).
+- Admin decisions **require** `notes` when rejecting (`VALIDATION_ERROR` otherwise).
 - Availability slots are validated as future, ordered and non-overlapping.
 - Interview slots must start in the future; duration stays 15–120 minutes.
 - Volunteer `weeklyHours` is validated as 1–168.
 - `serviceRadiusKm` is optional (the schema allows `NULL`); when present it must be 1–200.
+

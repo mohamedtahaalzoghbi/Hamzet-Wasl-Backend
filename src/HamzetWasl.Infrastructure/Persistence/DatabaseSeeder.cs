@@ -105,7 +105,8 @@ public sealed class DatabaseSeeder
         {
             if (existing.Role.RoleName != RoleNames.Admin)
             {
-                _logger.LogWarning("Admin seed skipped: {Email} exists with role {Role}.", email, existing.Role.RoleName);
+                _logger.LogWarning("Admin seed skipped: an account with the admin address exists with role {Role}.",
+                    existing.Role.RoleName);
             }
 
             return;
@@ -157,6 +158,6 @@ public sealed class DatabaseSeeder
         }
 
         await transaction.CommitAsync(ct);
-        _logger.LogInformation("Admin account seeded for {Email}.", email);
+        _logger.LogInformation("Admin account seeded.");
     }
 }

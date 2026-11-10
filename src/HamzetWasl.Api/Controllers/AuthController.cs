@@ -17,6 +17,7 @@ public sealed class AuthController : ApiControllerBase
     [AllowAnonymous]
     [EnableRateLimiting("auth")]
     [HttpPost("register")]
+    [ProducesResponseType(typeof(ApiResponse<AuthResponse>), StatusCodes.Status201Created)]
     public async Task<ActionResult<ApiResponse<AuthResponse>>> Register(
         [FromBody] RegisterRequest request, CancellationToken ct) =>
         CreatedEnvelope(await _auth.RegisterAsync(request, ct));
@@ -24,6 +25,7 @@ public sealed class AuthController : ApiControllerBase
     [AllowAnonymous]
     [EnableRateLimiting("auth")]
     [HttpPost("login")]
+    [ProducesResponseType(typeof(ApiResponse<AuthResponse>), StatusCodes.Status200OK)]
     public async Task<ActionResult<ApiResponse<AuthResponse>>> Login(
         [FromBody] LoginRequest request, CancellationToken ct) =>
         Ok(Envelope(await _auth.LoginAsync(request, ct)));
@@ -31,6 +33,7 @@ public sealed class AuthController : ApiControllerBase
     [AllowAnonymous]
     [EnableRateLimiting("auth")]
     [HttpPost("google")]
+    [ProducesResponseType(typeof(ApiResponse<GoogleAuthResponse>), StatusCodes.Status200OK)]
     public async Task<ActionResult<ApiResponse<GoogleAuthResponse>>> Google(
         [FromBody] GoogleAuthRequest request, CancellationToken ct) =>
         Ok(Envelope(await _auth.GoogleAsync(request, ct)));
@@ -38,12 +41,14 @@ public sealed class AuthController : ApiControllerBase
     [AllowAnonymous]
     [EnableRateLimiting("auth")]
     [HttpPost("refresh")]
+    [ProducesResponseType(typeof(ApiResponse<AuthResponse>), StatusCodes.Status200OK)]
     public async Task<ActionResult<ApiResponse<AuthResponse>>> Refresh(
         [FromBody] RefreshRequest request, CancellationToken ct) =>
         Ok(Envelope(await _auth.RefreshAsync(request, ct)));
 
     [Authorize]
     [HttpPost("logout")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
     public async Task<IActionResult> Logout(
         [FromBody] LogoutRequest? request, CancellationToken ct)
     {
@@ -54,6 +59,7 @@ public sealed class AuthController : ApiControllerBase
     [AllowAnonymous]
     [EnableRateLimiting("auth")]
     [HttpPost("forgot-password")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
     public async Task<IActionResult> ForgotPassword(
         [FromBody] ForgotPasswordRequest request, CancellationToken ct)
     {
@@ -64,6 +70,7 @@ public sealed class AuthController : ApiControllerBase
     [AllowAnonymous]
     [EnableRateLimiting("auth")]
     [HttpPost("reset-password")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
     public async Task<IActionResult> ResetPassword(
         [FromBody] ResetPasswordRequest request, CancellationToken ct)
     {
@@ -74,6 +81,7 @@ public sealed class AuthController : ApiControllerBase
     [Authorize]
     [EnableRateLimiting("auth")]
     [HttpPost("change-password")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
     public async Task<IActionResult> ChangePassword(
         [FromBody] ChangePasswordRequest request, CancellationToken ct)
     {
@@ -84,6 +92,7 @@ public sealed class AuthController : ApiControllerBase
     [Authorize]
     [EnableRateLimiting("otp")]
     [HttpPost("email/send-code")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
     public async Task<IActionResult> SendEmailCode(CancellationToken ct)
     {
         await _auth.SendEmailCodeAsync(CurrentUserId, ct);
@@ -93,6 +102,7 @@ public sealed class AuthController : ApiControllerBase
     [Authorize]
     [EnableRateLimiting("otp")]
     [HttpPost("email/verify")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
     public async Task<IActionResult> VerifyEmail([FromBody] VerifyCodeRequest request, CancellationToken ct)
     {
         await _auth.VerifyEmailAsync(CurrentUserId, request.Code, ct);
@@ -102,6 +112,7 @@ public sealed class AuthController : ApiControllerBase
     [Authorize]
     [EnableRateLimiting("otp")]
     [HttpPost("phone/send-code")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
     public async Task<IActionResult> SendPhoneCode(
         [FromBody] SendPhoneCodeRequest request, CancellationToken ct)
     {
@@ -112,6 +123,7 @@ public sealed class AuthController : ApiControllerBase
     [Authorize]
     [EnableRateLimiting("otp")]
     [HttpPost("phone/verify")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
     public async Task<IActionResult> VerifyPhone([FromBody] VerifyCodeRequest request, CancellationToken ct)
     {
         await _auth.VerifyPhoneAsync(CurrentUserId, request.Code, ct);
@@ -120,6 +132,7 @@ public sealed class AuthController : ApiControllerBase
 
     [Authorize]
     [HttpGet("session")]
+    [ProducesResponseType(typeof(ApiResponse<UserSessionDto>), StatusCodes.Status200OK)]
     public async Task<ActionResult<ApiResponse<UserSessionDto>>> Session(CancellationToken ct) =>
         Ok(Envelope(await _auth.GetSessionAsync(CurrentUserId, ct)));
 }

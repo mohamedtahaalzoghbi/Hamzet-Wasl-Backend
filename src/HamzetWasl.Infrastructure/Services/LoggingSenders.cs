@@ -33,8 +33,16 @@ public sealed class LoggingSmsSender : ISmsSender
 
     public Task SendAsync(string phone, string message, CancellationToken ct = default)
     {
-        _logger.LogInformation("SMS dispatched. MessageLength={MessageLength} RecipientSuffix={Suffix}",
-            message.Length, phone.Length > 3 ? phone[^3..] : "***");
+        // The number itself never reaches the log: only the domain part is kept for
+        // troubleshooting.
+        _logger.LogInformation("SMS dispatched. MessageLength={MessageLength} RecipientDomain={Domain}",
+            message.Length, MaskPhone(phone));
         return Task.CompletedTask;
+    }
+
+    private static string MaskPhone(string value)
+    {
+        var at = value.IndexOf('@', StringComparison.Ordinal);
+        return at <= 0 ? "***" : "***" + value[at..];
     }
 }

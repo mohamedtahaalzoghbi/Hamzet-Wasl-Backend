@@ -9,6 +9,7 @@ using HamzetWasl.Infrastructure.Identity;
 using HamzetWasl.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -27,8 +28,21 @@ public sealed class AuthService : IAuthService
     private readonly IEmailSender _email;
     private readonly ISmsSender _sms;
     private readonly IGoogleTokenValidator _google;
+    private readonly IDistributedCache _cache;
     private readonly IClock _clock;
     private readonly ILogger<AuthService> _logger;
+
+    /// <summary>
+    /// A throwaway account used to hash a password when the requested account does not
+    /// exist, so that the response time does not reveal whether an account is registered.
+    /// </summary>
+    private static readonly AppUser _lockoutProbe = new()
+    {
+        Id = Guid.Empty,
+        UserName = "probe",
+        NormalizedUserName = "PROBE",
+        SecurityStamp = Guid.NewGuid().ToString()
+    };
 
     public AuthService(
         HamzetWaslDbContext db,
@@ -38,6 +52,7 @@ public sealed class AuthService : IAuthService
         IEmailSender email,
         ISmsSender sms,
         IGoogleTokenValidator google,
+        IDistributedCache cache,
         IClock clock,
         ILogger<AuthService> logger)
     {
@@ -48,6 +63,7 @@ public sealed class AuthService : IAuthService
         _email = email;
         _sms = sms;
         _google = google;
+        _cache = cache;
         _clock = clock;
         _logger = logger;
     }
@@ -186,10 +202,28 @@ public sealed class AuthService : IAuthService
             appUser = await _db.Users.FirstOrDefaultAsync(u => u.PhoneNumber == phone, ct);
         }
 
-        if (appUser is null || !await _users.CheckPasswordAsync(appUser, request.Password))
+        if (appUser is null)
+        {
+            // Hash the password against a probe account so the response time does not
+            // reveal whether the account exists.
+            _ = _users.PasswordHasher.HashPassword(_lockoutProbe, request.Password);
+            throw new AppException(401, ErrorCodes.InvalidCredentials);
+        }
+
+        if (await _users.IsLockedOutAsync(appUser))
         {
             throw new AppException(401, ErrorCodes.InvalidCredentials);
         }
+
+        if (!await _users.CheckPasswordAsync(appUser, request.Password))
+        {
+            // The failed attempt is counted so the account is locked after the configured
+            // number of tries (Identity lockout).
+            await _users.AccessFailedAsync(appUser);
+            throw new AppException(401, ErrorCodes.InvalidCredentials);
+        }
+
+        await _users.ResetAccessFailedCountAsync(appUser);
 
         var account = await GetAccountAsync(appUser.Id, ct);
         EnsureNotSuspended(account);
@@ -392,10 +426,19 @@ public sealed class AuthService : IAuthService
     public async Task ResetPasswordAsync(ResetPasswordRequest request, CancellationToken ct = default)
     {
         var appUser = await _users.FindByEmailAsync(request.Email.Trim().ToLowerInvariant());
-        if (appUser is null) throw new AppException(400, ErrorCodes.OtpInvalid, "رمز إعادة التعيين غير صحيح.");
+
+        // The same answer for an unknown address and for a wrong token: the endpoint must
+        // not reveal which addresses are registered.
+        if (appUser is null)
+        {
+            throw new AppException(400, ErrorCodes.OtpInvalid, "رمز إعادة التعيين غير صحيح.");
+        }
 
         var result = await _users.ResetPasswordAsync(appUser, request.Token, request.NewPassword);
-        if (!result.Succeeded) throw ToValidationException(result);
+        if (!result.Succeeded)
+        {
+            throw new AppException(400, ErrorCodes.OtpInvalid, "رمز إعادة التعيين غير صحيح.");
+        }
 
         await RevokeAllRefreshTokensAsync(appUser.Id, ct);
     }
@@ -469,27 +512,15 @@ public sealed class AuthService : IAuthService
         var normalized = PhoneNumberNormalizer.TryNormalize(phone)
                          ?? throw AppException.Validation(new Dictionary<string, string[]> { ["phone"] = ["رقم الهاتف غير صحيح."] });
 
-        if (await _db.UserAccounts.AnyAsync(a => a.Phone == normalized && a.UserId != userId, ct))
-        {
-            throw AppException.Conflict(ErrorCodes.PhoneAlreadyExists);
-        }
+        // The number is not written to the account before it is proven: it is kept as a
+        // pending number until the code is verified. The account therefore keeps the
+        // number it owns, and another account cannot take a number over silently.
+        var purpose = $"{PhonePurpose}:{normalized}";
 
-        var account = await GetAccountAsync(userId, ct);
-        await _otp.EnsureCanSendAsync(userId, PhonePurpose, ct);
-
-        if (account.Phone != normalized)
-        {
-            account.Phone = normalized;
-            account.PhoneVerified = false;
-            var appUser = await _users.FindByIdAsync(userId.ToString());
-            if (appUser is not null)
-            {
-                appUser.PhoneNumber = normalized;
-                appUser.PhoneNumberConfirmed = false;
-                await _users.UpdateAsync(appUser);
-            }
-            await _db.SaveChangesAsync(ct);
-        }
+        // One code per target number and per minute: the endpoint cannot be used to
+        // flood an arbitrary number with messages.
+        await EnsureTargetCooldownAsync(normalized, ct);
+        await _otp.EnsureCanSendAsync(userId, purpose, ct);
 
         var code = _otp.GenerateCode();
         var now = _clock.UtcNow;
@@ -501,36 +532,72 @@ public sealed class AuthService : IAuthService
         {
             VerificationId = Guid.NewGuid(),
             UserId = userId,
-            CodeHash = _otp.Hash(userId, PhonePurpose, code),
+            CodeHash = _otp.Hash(userId, purpose, code),
             ExpiresAt = now.AddMinutes(_otp.ExpiryMinutes)
         });
         await _db.SaveChangesAsync(ct);
 
+        await _cache.SetStringAsync(PendingPhoneKey(userId), normalized,
+            new DistributedCacheEntryOptions { AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(_otp.ExpiryMinutes) }, ct);
+
         await _sms.SendAsync(normalized, $"رمز التحقق الخاص بك في همزة وصل: {code}", ct);
-        await _otp.MarkSentAsync(userId, PhonePurpose, ct);
+        await _otp.MarkSentAsync(userId, purpose, ct);
+        await MarkTargetCooldownAsync(normalized, ct);
     }
 
     public async Task VerifyPhoneAsync(Guid userId, string code, CancellationToken ct = default)
     {
+        var pending = await _cache.GetStringAsync(PendingPhoneKey(userId), ct);
+        if (string.IsNullOrWhiteSpace(pending))
+        {
+            throw new AppException(422, ErrorCodes.VerificationIncomplete, "لا يوجد رقم هاتف قيد التحقق.");
+        }
+
+        var purpose = $"{PhonePurpose}:{pending}";
         var verification = await _db.PhoneVerifications
             .Where(v => v.UserId == userId && v.VerifiedAt == null)
             .OrderByDescending(v => v.VerificationId)
             .FirstOrDefaultAsync(ct);
 
-        await VerifyOtpAsync(verification?.ExpiresAt, verification?.CodeHash, userId, PhonePurpose, code, ct);
+        await VerifyOtpAsync(verification?.ExpiresAt, verification?.CodeHash, userId, purpose, code, ct);
+
+        // The uniqueness is checked once the ownership of the number is proven, so the
+        // endpoint cannot be used to find out which numbers are registered.
+        if (await _db.UserAccounts.AnyAsync(a => a.Phone == pending && a.UserId != userId, ct))
+        {
+            throw AppException.Conflict(ErrorCodes.PhoneAlreadyExists);
+        }
 
         verification!.VerifiedAt = _clock.UtcNow;
         var account = await GetAccountAsync(userId, ct);
+        account.Phone = pending;
         account.PhoneVerified = true;
         var appUser = await _users.FindByIdAsync(userId.ToString());
         if (appUser is not null)
         {
+            appUser.PhoneNumber = pending;
             appUser.PhoneNumberConfirmed = true;
             await _users.UpdateAsync(appUser);
         }
         await _db.SaveChangesAsync(ct);
-        await _otp.ResetAttemptsAsync(userId, PhonePurpose, ct);
+        await _otp.ResetAttemptsAsync(userId, purpose, ct);
+        await _cache.RemoveAsync(PendingPhoneKey(userId), ct);
     }
+
+    private static string PendingPhoneKey(Guid userId) => $"phone:pending:{userId:N}";
+
+    private async Task EnsureTargetCooldownAsync(string target, CancellationToken ct)
+    {
+        var key = $"otp:cooldown:target:{target}";
+        if (await _cache.GetStringAsync(key, ct) is not null)
+        {
+            throw new AppException(429, ErrorCodes.OtpResendTooSoon);
+        }
+    }
+
+    private Task MarkTargetCooldownAsync(string target, CancellationToken ct) =>
+        _cache.SetStringAsync($"otp:cooldown:target:{target}", "1",
+            new DistributedCacheEntryOptions { AbsoluteExpirationRelativeToNow = TimeSpan.FromSeconds(60) }, ct);
 
     public async Task<UserSessionDto> GetSessionAsync(Guid userId, CancellationToken ct = default)
     {

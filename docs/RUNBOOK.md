@@ -24,7 +24,7 @@ sqllocaldb start MSSQLLocalDB
 | Remote | `https://github.com/mohamedtahaalzoghbi/hamzet-wasl-backend` (private) |
 | Branch | `main` |
 | Pipeline | `.github/workflows/ci.yml` — build (warnings as errors), unit + integration tests on a SQL Server 2022 container, OpenAPI drift check, secret scan |
-| Last green run | 98 unit tests + 9 integration tests, 0 warnings, `docs/openapi.json` in sync |
+| Last green run | 121 unit tests + 30 integration tests, 0 warnings, `docs/openapi.json` in sync |
 
 Any push to `main` (and every pull request) runs the pipeline; the branch must stay green.
 
@@ -42,6 +42,9 @@ Any push to `main` (and every pull request) runs the pipeline; the branch must s
 | `Storage:RootPath`, `Storage:PublicBaseUrl`, `Storage:SigningKey` | Private/local file storage + HMAC key (⚠ minimum 32 chars, **required**) |
 | `Otp:HashKey` | Pepper for hashing OTP codes (⚠ minimum 16 chars, **required**) |
 | `Seed:AdminEmail`, `Seed:AdminPhone`, `Seed:AdminPassword` | First admin account |
+| `RateLimiting:*` | Limits of the fixed window limiter (auth 20/min, OTP 6/10 min, uploads 30/h) |
+| `Swagger:Enabled` | Serves the OpenAPI document; default `false` outside development |
+| `Serilog:MinimumLevel:Override` | Silences the request and SQL loggers (the request URL carries signatures and tokens) |
 | `SkipDatabaseInitialization` | `true` skips automatic schema/seeding (used by tests) |
 
 Never commit production keys; override with environment variables, e.g.
@@ -91,15 +94,18 @@ dotnet test tests/HamzetWasl.UnitTests/HamzetWasl.UnitTests.csproj        # fast
 dotnet test tests/HamzetWasl.IntegrationTests/HamzetWasl.IntegrationTests.csproj
 ```
 
-Unit tests (98) cover the §1.9 business rules, the validators, the phone normaliser, the file
-rules and the **schema parity test** (EF model vs `Hamzet_Wasl_Schema_v2.sql`).
+Unit tests (121) cover the §1.9 business rules, the validators, the phone normaliser, the file
+rules, the token purposes, the UTC serialisation, the accessibility preset and the **schema parity
+test** (EF model vs `Hamzet_Wasl_Schema_v2.sql`).
 
-Integration tests (9) run against a real SQL Server:
+Integration tests (30) run against a real SQL Server:
 
 - create a unique `HamzetWasl_IT_<guid>` database,
 - apply `Hamzet_Wasl_Schema_v2.sql` exactly as shipped (batch splitter on `GO`),
 - boot the real API through `WebApplicationFactory` with `SkipDatabaseInitialization=true`,
-- run the Phase-1 end-to-end flows and the applied-schema assertions, then drop the database.
+- run the Phase-1 end-to-end flows, the applied-schema assertions and the security regressions
+  (token purposes, lockout, phone ownership, enumeration, rate limiting, upload limits), then drop
+  the database.
 
 Locally they use LocalDB. On CI (or any other server) point them at it with environment
 variables:
@@ -128,6 +134,8 @@ The committed file must stay byte-comparable with the live document. CI (GitHub 
 3. The API is started against a throwaway database and `swagger.json` is exported.
 4. `jq -S` compares the export with `docs/openapi.json`; a difference fails the build —
    contract changes must update the file in the same commit.
+   The document is only served in development, so the CI job starts the API with
+   `ASPNETCORE_ENVIRONMENT=Development` (the API creates the database and applies the schema).
 
 ## 6.1 Continuous integration jobs
 
@@ -167,9 +175,11 @@ Happy paths, in order, via Swagger (`Authorize` with the `accessToken`):
 - [x] `dotnet build` → 0 errors, 0 warnings across the solution (also enforced in CI).
 - [x] Business rules from MASTER_PROMPT §1.9 covered by unit tests.
 - [x] Integration tests cover: onboarding, profile/accessibility flows, volunteer
-      verification, organization onboarding, admin queues/audit, ownership rules, and the
-      applied-schema assertions (tables, CHECK constraints, FKs, unique constraints, indexes).
-- [x] `docs/openapi.json` committed and CI-validated (drift check).
+      verification, organization onboarding, admin queues/audit, ownership rules, the
+      applied-schema assertions (tables, CHECK constraints, FKs, unique constraints, indexes)
+      and the P0 security regressions.
+- [x] `docs/openapi.json` committed, accurate (status codes, error responses, security,
+      enums) and CI-validated (drift check).
 - [x] `docs/API_CONTRACT.md`, `docs/ERD_TO_API_MAP.md`, `docs/OPEN_QUESTIONS.md`,
       `docs/DEVIATIONS.md`, this runbook.
 - [x] No PII in logs; no cascade deletes; schema file untouched.

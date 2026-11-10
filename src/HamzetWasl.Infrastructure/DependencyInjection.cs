@@ -63,13 +63,14 @@ public static class DependencyInjection
         }
 
         services.AddSingleton<IClock, Clock>();
-    services.AddSingleton<SchemaBootstrapper>();
+        services.AddSingleton<SchemaBootstrapper>();
         services.AddSingleton<ITokenService, TokenService>();
         services.AddScoped<OtpService>();
         services.AddScoped<StorageKeyProtector>();
         services.AddSingleton<IFileStorage, LocalFileStorage>();
         services.AddScoped<IEmailSender, LoggingEmailSender>();
         services.AddScoped<ISmsSender, LoggingSmsSender>();
+        services.AddScoped<INotificationService, NotificationService>();
         services.AddScoped<IGoogleTokenValidator, GoogleTokenValidator>();
 
         services.AddScoped<IAuthService, AuthService>();
