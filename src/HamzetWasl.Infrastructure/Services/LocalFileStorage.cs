@@ -19,6 +19,14 @@ public sealed class LocalFileStorage : IFileStorage
     {
         _options = options.Value;
         _clock = clock;
+
+        if (string.IsNullOrWhiteSpace(_options.SigningKey) || _options.SigningKey.Length < 32)
+        {
+            throw new InvalidOperationException(
+                "Storage:SigningKey is required and must be at least 32 characters. " +
+                "Set it through the environment variable Storage__SigningKey.");
+        }
+
         _root = Path.GetFullPath(Path.Combine(environment.ContentRootPath, _options.RootPath));
         Directory.CreateDirectory(_root);
     }
@@ -121,8 +129,7 @@ public sealed class LocalFileStorage : IFileStorage
 
     private string Sign(string key, long expiresUnix)
     {
-        var secret = string.IsNullOrWhiteSpace(_options.SigningKey) ? "hamzet-wasl-dev-file-key" : _options.SigningKey;
-        using var hmac = new HMACSHA256(Encoding.UTF8.GetBytes(secret));
+        using var hmac = new HMACSHA256(Encoding.UTF8.GetBytes(_options.SigningKey));
         var hash = hmac.ComputeHash(Encoding.UTF8.GetBytes($"{key}|{expiresUnix}"));
         return Convert.ToBase64String(hash).TrimEnd('=').Replace('+', '-').Replace('/', '_');
     }

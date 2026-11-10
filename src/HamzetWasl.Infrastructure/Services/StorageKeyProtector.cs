@@ -17,7 +17,13 @@ public sealed class StorageKeyProtector
     public StorageKeyProtector(IOptions<StorageOptions> options)
     {
         var secret = options.Value.SigningKey;
-        if (string.IsNullOrWhiteSpace(secret)) secret = "hamzet-wasl-dev-storage-key";
+        if (string.IsNullOrWhiteSpace(secret) || secret.Length < 32)
+        {
+            throw new InvalidOperationException(
+                "Storage:SigningKey is required and must be at least 32 characters. " +
+                "Set it through the environment variable Storage__SigningKey.");
+        }
+
         _key = SHA256.HashData(Encoding.UTF8.GetBytes(secret));
     }
 

@@ -26,15 +26,17 @@ sqllocaldb start MSSQLLocalDB
 |---|---|
 | `ConnectionStrings:DefaultConnection` | SQL Server / LocalDB connection |
 | `Jwt:Issuer`, `Jwt:Audience` | Token issuer/audience |
-| `Jwt:SigningKey` | ⚠ minimum 32 chars (HTTPS HSA256) |
+| `Jwt:SigningKey` | ⚠ minimum 32 chars (HS256) — **required**, the app refuses to start without it |
 | `Jwt:AccessTokenMinutes`, `Jwt:RefreshTokenDays` | Token lifetimes |
-| `Storage:RootPath`, `Storage:PublicBaseUrl`, `Storage:SigningKey` | Private/local file storage + HMAC key |
-| `Otp:HashKey` | Pepper for hashing OTP codes |
+| `Storage:RootPath`, `Storage:PublicBaseUrl`, `Storage:SigningKey` | Private/local file storage + HMAC key (⚠ minimum 32 chars, **required**) |
+| `Otp:HashKey` | Pepper for hashing OTP codes (⚠ minimum 16 chars, **required**) |
 | `Seed:AdminEmail`, `Seed:AdminPhone`, `Seed:AdminPassword` | First admin account |
 | `SkipDatabaseInitialization` | `true` skips automatic schema/seeding (used by tests) |
 
 Never commit production keys; override with environment variables, e.g.
-`Jwt__SigningKey`, `ConnectionStrings__DefaultConnection`.
+`Jwt__SigningKey`, `Storage__SigningKey`, `Otp__HashKey`,
+`ConnectionStrings__DefaultConnection`. There are no hard-coded fallback keys in the code:
+a missing key stops the application with a clear error instead of silently using a default.
 
 ## 3. Run the API
 

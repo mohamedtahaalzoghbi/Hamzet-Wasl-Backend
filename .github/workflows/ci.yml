@@ -190,8 +190,9 @@ jobs:
           done
 
           # C. No credential literal anywhere else in the tracked sources.
+          #    The test projects are excluded: their passwords are test fixtures, not secrets.
           MATCHES=$(git grep -nIE "(password|secret|apikey|api_key|signingkey|hashkey)[\"']?\s*[:=]\s*[\"'][^\"']{8,}[\"']" \
-            -- '*.cs' '*.json' ':!src/HamzetWasl.Api/appsettings.Development.json' ':!docs/*' | grep -v "DEV-ONLY" || true)
+            -- '*.cs' '*.json' ':!src/HamzetWasl.Api/appsettings.Development.json' ':!docs/*' ':!tests/*' | grep -v "DEV-ONLY" || true)
           if [ -n "${MATCHES}" ]; then
             echo "${MATCHES}"
             fail "possible secret committed"

@@ -13,12 +13,22 @@ public sealed class OtpService
     private readonly OtpOptions _options;
     private readonly IDistributedCache _cache;
     private readonly IClock _clock;
+    private readonly string _hashKey;
 
     public OtpService(IOptions<OtpOptions> options, IDistributedCache cache, IClock clock)
     {
         _options = options.Value;
         _cache = cache;
         _clock = clock;
+
+        if (string.IsNullOrWhiteSpace(_options.HashKey) || _options.HashKey.Length < 16)
+        {
+            throw new InvalidOperationException(
+                "Otp:HashKey is required and must be at least 16 characters. " +
+                "Set it through the environment variable Otp__HashKey.");
+        }
+
+        _hashKey = _options.HashKey;
     }
 
     public string GenerateCode()
@@ -30,9 +40,8 @@ public sealed class OtpService
 
     public string Hash(Guid userId, string purpose, string code)
     {
-        var key = string.IsNullOrWhiteSpace(_options.HashKey) ? "hamzet-wasl-dev-otp-key" : _options.HashKey;
         var bytes = Encoding.UTF8.GetBytes($"{userId:N}:{purpose}:{code}");
-        using var hmac = new HMACSHA256(Encoding.UTF8.GetBytes(key));
+        using var hmac = new HMACSHA256(Encoding.UTF8.GetBytes(_hashKey));
         return Convert.ToBase64String(hmac.ComputeHash(bytes));
     }
 
