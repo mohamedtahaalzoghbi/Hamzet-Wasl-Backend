@@ -17,6 +17,17 @@ sqllocaldb info MSSQLLocalDB
 sqllocaldb start MSSQLLocalDB
 ```
 
+### Repository and CI
+
+| Item | Value |
+|---|---|
+| Remote | `https://github.com/mohamedtahaalzoghbi/hamzet-wasl-backend` (private) |
+| Branch | `main` |
+| Pipeline | `.github/workflows/ci.yml` — build (warnings as errors), unit + integration tests on a SQL Server 2022 container, OpenAPI drift check, secret scan |
+| Last green run | 98 unit tests + 9 integration tests, 0 warnings, `docs/openapi.json` in sync |
+
+Any push to `main` (and every pull request) runs the pipeline; the branch must stay green.
+
 ## 2. Configuration
 
 `src/HamzetWasl.Api/appsettings.json` holds the base settings, overridden by
