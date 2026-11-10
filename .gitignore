@@ -1,0 +1,56 @@
+# --- Build artifacts ---
+bin/
+obj/
+out/
+artifacts/
+*.binlog
+
+# --- Uploads / runtime data ---
+App_Data/
+[Aa]pp_[Dd]ata/
+wwwroot/media/
+*.mdf
+*.ldf
+*.mdf.tmp
+
+# --- Local databases ---
+*.db
+*.db-shm
+*.db-wal
+*.bak
+
+# --- Secrets & configuration with credentials (never commit) ---
+# Dev placeholders live in appsettings.Development.json (marked DEV-ONLY).
+# Real secrets come from environment variables or user secrets only.
+appsettings.Production.json
+appsettings.*.Local.json
+secrets.json
+*.pfx
+*.pem
+*.key
+*.crt
+*.p12
+*.snk
+
+# --- User state / IDE ---
+.vs/
+.vscode/*
+!.vscode/launch.json
+!.vscode/tasks.json
+.idea/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+dotnet-user-secrets/
+
+# --- Test & coverage results ---
+TestResults/
+[Ll]og/
+logs/
+*.log
+
+# --- OS ---
+Thumbs.db
+.DS_Store
+desktop.ini

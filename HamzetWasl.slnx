@@ -1,0 +1,12 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/HamzetWasl.Api/HamzetWasl.Api.csproj" />
+    <Project Path="src/HamzetWasl.Application/HamzetWasl.Application.csproj" />
+    <Project Path="src/HamzetWasl.Domain/HamzetWasl.Domain.csproj" />
+    <Project Path="src/HamzetWasl.Infrastructure/HamzetWasl.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/HamzetWasl.IntegrationTests/HamzetWasl.IntegrationTests.csproj" />
+    <Project Path="tests/HamzetWasl.UnitTests/HamzetWasl.UnitTests.csproj" />
+  </Folder>
+</Solution>
