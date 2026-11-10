@@ -112,8 +112,10 @@ jobs:
           export ASPNETCORE_URLS=http://127.0.0.1:5080
           export ConnectionStrings__DefaultConnection="Server=localhost,1433;Database=${CI_DB};User Id=sa;Password=${SA_PASSWORD};TrustServerCertificate=True;MultipleActiveResultSets=True"
 
-          nohup dotnet src/HamzetWasl.Api/bin/Release/net10.0/HamzetWasl.Api.dll \
-            > /tmp/api.log 2>&1 &
+          # The content root is the working directory, so the app is started from its
+          # output folder where appsettings*.json live.
+          cd src/HamzetWasl.Api/bin/Release/net10.0
+          nohup dotnet HamzetWasl.Api.dll > /tmp/api.log 2>&1 &
           echo $! > /tmp/api.pid
 
           for attempt in $(seq 1 60); do
@@ -156,24 +158,34 @@ jobs:
           set -euo pipefail
           fail() { echo "::error::$1"; exit 1; }
 
+          # Credential keys: a value under one of these names is a secret.
+          # The list is exact on purpose (AccessTokenMinutes is a duration, not a secret).
+          CREDENTIAL_KEYS='["signingkey","hashkey","password","secret","apikey","api_key","clientsecret","connectionpassword","pwd"]'
+
           # A. The production configuration must not contain literal credentials.
-          PROD=$(jq -r '[paths(scalars) as $p
-                        | select(($p[-1] | tostring | ascii_downcase) | test("signingkey|hashkey|password|secret|apikey|token"))
-                        | getpath($p)] | .[]' src/HamzetWasl.Api/appsettings.json)
+          PROD=$(jq -r "[paths(scalars) as \$p
+                        | (\$p[-1] | tostring | ascii_downcase) as \$k
+                        | select(${CREDENTIAL_KEYS} | index(\$k))
+                        | getpath(\$p)
+                        | select(type == \"string\" and length > 0)] | .[]" src/HamzetWasl.Api/appsettings.json)
           if [ -n "${PROD}" ]; then
+            echo "${PROD}"
             fail "appsettings.json contains a literal credential"
           fi
 
           # B. The development configuration may only carry DEV-ONLY placeholders.
           #     (The local Seed block is the documented development admin account.)
-          DEV=$(jq -r '[paths(scalars) as $p
-                       | select(($p[0] | tostring) != "Seed")
-                       | select(($p[-1] | tostring | ascii_downcase) | test("signingkey|hashkey|password|secret|apikey|token"))
-                       | getpath($p)] | .[]' src/HamzetWasl.Api/appsettings.Development.json)
+          DEV=$(jq -r "[paths(scalars) as \$p
+                       | (\$p[0] | tostring) as \$section
+                       | select(\$section != \"Seed\")
+                       | (\$p[-1] | tostring | ascii_downcase) as \$k
+                       | select(${CREDENTIAL_KEYS} | index(\$k))
+                       | getpath(\$p)
+                       | select(type == \"string\" and length > 0)] | .[]" src/HamzetWasl.Api/appsettings.Development.json)
           for value in ${DEV}; do
             case "${value}" in
               *DEV-ONLY*) ;;
-              *) fail "appsettings.Development.json contains a credential that is not marked DEV-ONLY" ;;
+              *) echo "${value}"; fail "appsettings.Development.json contains a credential that is not marked DEV-ONLY" ;;
             esac
           done
 

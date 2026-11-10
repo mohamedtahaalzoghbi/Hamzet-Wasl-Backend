@@ -49,6 +49,12 @@ public sealed class ApiFixture : IAsyncLifetime
             command.ExecuteNonQuery();
         }
 
+        // The API reads its connection string while the host is built, so it is provided
+        // through the environment (the ASP.NET Core `ConnectionStrings__DefaultConnection` key).
+        // A late `ConfigureAppConfiguration` override would arrive after the DbContext was
+        // already registered with the LocalDB default.
+        Environment.SetEnvironmentVariable("ConnectionStrings__DefaultConnection", _connectionString);
+
         Factory = new HamzetWaslWebApplicationFactory(_connectionString);
         AnonymousClient = Factory.CreateClient(new WebApplicationFactoryClientOptions
         {
