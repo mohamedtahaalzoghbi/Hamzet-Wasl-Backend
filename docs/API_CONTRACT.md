@@ -90,6 +90,7 @@ Only the codes the API really produces are listed.
 | `PROFILE_INCOMPLETE` | 422 | Organization submit lacks a complete profile (the message lists what is missing) |
 | `DOCUMENT_TYPE_INVALID` | 400 | Unknown document type path segment |
 | `ORGANIZATION_ALREADY_SUBMITTED` | 409 | A review is already pending |
+| `DELETION_REQUEST_ALREADY_PENDING` | 409 | The caller already has a pending account-deletion request |
 | `FILE_TOO_LARGE` | 413 | The uploaded file is bigger than the limit of its category |
 | `REQUEST_TOO_LARGE` | 413 | The request itself is bigger than the limit of the endpoint |
 | `FILE_TYPE_NOT_ALLOWED` | 400 | Extension, content type or magic bytes rejected |
@@ -200,8 +201,15 @@ account can take a number over. `POST /auth/phone/verify` applies the number (40
 | PUT | `/me/profile/avatar` | multipart `file` (PNG/JPG ≤ 5 MB) → `{ "avatarUrl": "…" }` (200) |
 | PUT | `/me/interests` | `{interestIds:[int]}` replaces the set (204) |
 | PUT | `/me/skills` | `{skillIds:[int]}` replaces the set (204) |
+| POST | `/me/deletion-request` | Creates the caller's `pending` deletion request; 201 with `{deletionRequestId, status, requestedAt}`; 409 `DELETION_REQUEST_ALREADY_PENDING` while one is pending |
+| GET | `/me/notifications` | Notification centre, paged and newest first (`?page=1&pageSize=20`, size clamped to 1..100) (200) |
+| PUT | `/me/notifications/{id}/read` | Marks one notification read; idempotent (204); 404 when the id is unknown or belongs to another user |
 
 Note: skills are the volunteer competency list; organizations use `business-field`.
+
+The deletion request only **asks** for deletion: the account stays usable until an admin approves
+it and the anonymisation runs (`POST /admin/deletion-requests/{id}/resolve`). There is no
+withdrawal endpoint in Phase 1 because the Figma has no such action.
 
 ## 5. Accessibility profile (`disabled_user` only)
 
@@ -376,6 +384,42 @@ are stored outside the web root.
   `account_suspended`, `account_reactivated`.
 - Emitted on: organization approval/rejection, volunteer verification approval/rejection,
   interview booked/changed/cancelled, suspension and reactivation.
+
+### Notification centre (REST)
+
+The same rows that are pushed over SignalR are readable as history, so a client that was
+offline can recover what it missed.
+
+```
+GET  /api/v1/me/notifications?page=1&pageSize=20
+PUT  /api/v1/me/notifications/{notificationId}/read
+```
+
+```json
+{
+  "items": [
+    {
+      "id": "…",
+      "type": "organization_approved",
+      "titleAr": "تم اعتماد مؤسستك",
+      "bodyAr": "تم اعتماد مؤسستك. يمكنك الآن نشر فرصك وخدماتك.",
+      "createdAt": "2026-01-15T10:30:00Z",
+      "isRead": false,
+      "readAt": null
+    }
+  ],
+  "page": 1,
+  "pageSize": 20,
+  "totalCount": 1
+}
+```
+
+- Ordering is `createdAt` **descending**; the id breaks ties, so paging is stable.
+- `PUT …/read` writes `NOTIFICATION.read_at` once. A second call answers 204 without moving the
+  timestamp (idempotent), and another user's id answers 404 `NOT_FOUND` (no existence leak).
+- **Limitation:** `payloadJson` (the target type/id) exists only in the live SignalR event.
+  `NOTIFICATION` has no column for it, so history items do not carry it; a deep link from a
+  historical row needs the deferred `payload_json` column (see `docs/DEVIATIONS.md`, entry 19).
 
 ## 11. Uploads
 

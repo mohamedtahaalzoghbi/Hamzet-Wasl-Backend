@@ -21,7 +21,7 @@ Legend:
 | `USER_SKILL`, `SKILL` | CRUD / seed | `PUT /me/skills`, `GET /meta/skills` |
 | `VOLUNTEER_SOCIAL_LINK` | CRUD | `PUT /me/verification/social-links` (volunteer social profiles) |
 | `CONSENT_RECORD` | create | written at register; DELETE accessibility logs withdrawal |
-| `DELETION_REQUEST` | CRUD | created by user flow, `GET /admin/deletion-requests` + resolve |
+| `DELETION_REQUEST` | Create (owner) + admin read/resolve | `POST /me/deletion-request`; `GET /admin/deletion-requests` + resolve. Withdrawal is not exposed in Phase 1. |
 | `EMAIL_VERIFICATION`, `PHONE_VERIFICATION` | create/read | OTP lifecycle for `/auth/email/*` and `/auth/phone/*` |
 
 ## Accessibility (`disabled_user` only)
@@ -60,7 +60,7 @@ catalogues validated against `MetaCatalog` and served by `/meta/*`.
 | Table | Access | Endpoints |
 |---|---|---|
 | `ADMIN_AUDIT` | create/read | written by every admin action; `GET /admin/audit` |
-| `NOTIFICATION` | CRUD/intern | created on decisions; delivered via `/hubs/notifications` |
+| `NOTIFICATION` | Create + read/update (own) | created on decisions; `GET /me/notifications` + `PUT /me/notifications/{id}/read`; live delivery via `/hubs/notifications`. `payloadJson` is live-only (no column). |
 | `FEATURE_REGISTRY` | seed/intern | feature flags; consumption starts Phase 2 |
 | `ASSISTANT_LOG` | intern | assistant usage log; no endpoint in Phase 1 |
 

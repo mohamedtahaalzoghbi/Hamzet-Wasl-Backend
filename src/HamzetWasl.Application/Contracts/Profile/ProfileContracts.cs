@@ -64,3 +64,12 @@ public sealed record AccessibilityResponse(
     JsonElement? ManualOverrides,
     DateTime UpdatedAt,
     AccessibilityPresetDto EffectivePreset);
+
+/// <summary>
+/// The account-deletion request that was just created. It stays <c>pending</c> until an
+/// admin resolves it; the account remains usable in the meantime.
+/// </summary>
+public sealed record DeletionRequestResponse(
+    Guid DeletionRequestId,
+    string Status,
+    DateTime RequestedAt);

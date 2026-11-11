@@ -6401,6 +6401,398 @@
         ]
       }
     },
+    "/api/v1/me/deletion-request": {
+      "post": {
+        "tags": [
+          "Profile"
+        ],
+        "operationId": "profile_requestdeletion",
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeletionRequestResponseApiResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeletionRequestResponseApiResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ObjectApiResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ObjectApiResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "الطلب غير صحيح.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorApiResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "التوكن مفقود أو منتهي.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorApiResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "لا تملك صلاحية تنفيذ الإجراء.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorApiResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "العنصر المطلوب غير موجود.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorApiResponse"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "حجم الطلب أو الملف أكبر من المسموح.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorApiResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "القاعدة التجارية تمنع الإجراء.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorApiResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "تم تجاوز عدد الطلبات المسموح.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorApiResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "خطأ غير متوقع.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorApiResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
+      }
+    },
+    "/api/v1/me/notifications": {
+      "get": {
+        "tags": [
+          "Profile"
+        ],
+        "operationId": "profile_getnotifications",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "type": "integer",
+              "format": "int32",
+              "default": 1
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "schema": {
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer",
+              "format": "int32",
+              "default": 20
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationDtoPagedResultApiResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationDtoPagedResultApiResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "الطلب غير صحيح.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorApiResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "التوكن مفقود أو منتهي.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorApiResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "لا تملك صلاحية تنفيذ الإجراء.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorApiResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "العنصر المطلوب غير موجود.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorApiResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "تعارض في البيانات.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorApiResponse"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "حجم الطلب أو الملف أكبر من المسموح.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorApiResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "القاعدة التجارية تمنع الإجراء.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorApiResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "تم تجاوز عدد الطلبات المسموح.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorApiResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "خطأ غير متوقع.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorApiResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
+      }
+    },
+    "/api/v1/me/notifications/{notificationId}/read": {
+      "put": {
+        "tags": [
+          "Profile"
+        ],
+        "operationId": "profile_marknotificationread",
+        "parameters": [
+          {
+            "name": "notificationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ObjectApiResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ObjectApiResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "الطلب غير صحيح.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorApiResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "التوكن مفقود أو منتهي.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorApiResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "لا تملك صلاحية تنفيذ الإجراء.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorApiResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "تعارض في البيانات.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorApiResponse"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "حجم الطلب أو الملف أكبر من المسموح.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorApiResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "القاعدة التجارية تمنع الإجراء.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorApiResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "تم تجاوز عدد الطلبات المسموح.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorApiResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "خطأ غير متوقع.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorApiResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
+      }
+    },
     "/api/v1/me/volunteer-profile": {
       "get": {
         "tags": [
@@ -9012,6 +9404,43 @@
         },
         "additionalProperties": false
       },
+      "DeletionRequestResponse": {
+        "type": "object",
+        "properties": {
+          "deletionRequestId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "string",
+            "nullable": true
+          },
+          "requestedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false
+      },
+      "DeletionRequestResponseApiResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "data": {
+            "$ref": "#/components/schemas/DeletionRequestResponse"
+          },
+          "error": {
+            "$ref": "#/components/schemas/ApiError"
+          },
+          "traceId": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
       "EmployeeRangeDto": {
         "type": "object",
         "properties": {
@@ -9450,6 +9879,111 @@
             },
             "nullable": true
           },
+          "error": {
+            "$ref": "#/components/schemas/ApiError"
+          },
+          "traceId": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "NotificationDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "type": {
+            "enum": [
+              "organization_approved",
+              "organization_rejected",
+              "verification_approved",
+              "verification_rejected",
+              "interview_booked",
+              "interview_changed",
+              "interview_cancelled",
+              "account_suspended",
+              "account_reactivated"
+            ],
+            "type": "string"
+          },
+          "titleAr": {
+            "type": "string",
+            "nullable": true
+          },
+          "bodyAr": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "isRead": {
+            "type": "boolean"
+          },
+          "readAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "NotificationDtoPagedResult": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/NotificationDto"
+            },
+            "nullable": true
+          },
+          "page": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "pageSize": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "totalCount": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
+      "NotificationDtoPagedResultApiResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "data": {
+            "$ref": "#/components/schemas/NotificationDtoPagedResult"
+          },
+          "error": {
+            "$ref": "#/components/schemas/ApiError"
+          },
+          "traceId": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "ObjectApiResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "data": { },
           "error": {
             "$ref": "#/components/schemas/ApiError"
           },

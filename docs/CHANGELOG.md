@@ -11,7 +11,7 @@ Published contract: `docs/openapi.json` (OpenAPI 3.0.4) and `docs/API_CONTRACT.m
 |---|---|
 | Auth | register, login, google, refresh, logout, forgot/reset/change password, email + phone OTP, session |
 | Meta | account types, governorates (+areas), business fields, employee ranges, skills, interests, need types, accommodations |
-| Profile | own profile, avatar, interests, skills |
+| Profile | own profile, avatar, interests, skills, deletion request, notification centre (history + read) |
 | Accessibility | `GET/PUT/DELETE /me/accessibility` (disabled_user only) |
 | Volunteer | profile, location, verification, evidence upload, social links, interview booking (book/change/cancel), availability, training |
 | Organization | profile, logo, cover, documents, submit, review status |
@@ -48,6 +48,22 @@ Security and contract fixes, all covered by regression tests:
 - **Logs and exposure**: Serilog never writes the request URLs (they carry the file signatures and
   the SignalR token), the Swagger document is only served in development, and no email or phone
   reaches the log file.
+
+### The Phase 1 UI-alignment round (batch 1)
+
+Endpoints added to close the two functional gaps found in the review. **No schema change**: every
+column used here already exists in `Hamzet_Wasl_Schema_v2.sql`.
+
+- `POST /me/deletion-request` creates the caller's `pending` `DELETION_REQUEST` row (201 with
+  `{deletionRequestId, status, requestedAt}`; 409 `DELETION_REQUEST_ALREADY_PENDING` while one is
+  pending). The admin queue and the anonymisation already existed; only the write side was missing.
+- `GET /me/notifications` returns the caller's notifications newest first (paged, `pageSize`
+  1..100) and `PUT /me/notifications/{id}/read` writes `read_at` (idempotent; 404 for an unknown
+  id or another user's id). `payloadJson` stays a live SignalR field until a `payload_json`
+  column is approved.
+- Both flows are pinned by `Phase1GapTests` (4 integration tests): 201 then 409 plus the admin
+  queue, ordering and paging, IDOR isolation, and read idempotency.
+- `docs/openapi.json` regenerated: 59 paths / 69 operations / 116 schemas.
 
 ### Earlier changes inside v1
 

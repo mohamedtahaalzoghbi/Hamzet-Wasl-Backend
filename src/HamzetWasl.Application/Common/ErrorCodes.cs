@@ -28,6 +28,7 @@ public static class ErrorCodes
     public const string ProfileIncomplete = "PROFILE_INCOMPLETE";
     public const string DocumentTypeInvalid = "DOCUMENT_TYPE_INVALID";
     public const string OrganizationAlreadySubmitted = "ORGANIZATION_ALREADY_SUBMITTED";
+    public const string DeletionRequestAlreadyPending = "DELETION_REQUEST_ALREADY_PENDING";
     public const string FileTooLarge = "FILE_TOO_LARGE";
     public const string FileTypeNotAllowed = "FILE_TYPE_NOT_ALLOWED";
     public const string InterviewSlotUnavailable = "INTERVIEW_SLOT_UNAVAILABLE";
@@ -46,6 +47,7 @@ public static class ArabicMessages
     private static readonly IReadOnlyDictionary<string, string> Messages =
         new Dictionary<string, string>(StringComparer.Ordinal)
         {
+            [ErrorCodes.DeletionRequestAlreadyPending] = "لديك طلب حذف حساب قيد المراجعة بالفعل.",
             [ErrorCodes.ValidationError] = "بيانات الطلب غير صحيحة.",
             [ErrorCodes.Unauthorized] = "يجب تسجيل الدخول أولاً.",
             [ErrorCodes.Forbidden] = "ليس لديك صلاحية لتنفيذ هذا الإجراء.",

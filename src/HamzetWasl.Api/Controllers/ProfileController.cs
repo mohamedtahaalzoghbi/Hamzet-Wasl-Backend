@@ -1,4 +1,5 @@
 using HamzetWasl.Application.Common;
+using HamzetWasl.Application.Contracts.Notifications;
 using HamzetWasl.Application.Contracts.Profile;
 using HamzetWasl.Application.Interfaces;
 using Microsoft.AspNetCore.Authorization;
@@ -12,8 +13,18 @@ namespace HamzetWasl.Api.Controllers;
 public sealed class ProfileController : ApiControllerBase
 {
     private readonly IProfileService _profiles;
+    private readonly IDeletionRequestService _deletionRequests;
+    private readonly INotificationService _notifications;
 
-    public ProfileController(IProfileService profiles) => _profiles = profiles;
+    public ProfileController(
+        IProfileService profiles,
+        IDeletionRequestService deletionRequests,
+        INotificationService notifications)
+    {
+        _profiles = profiles;
+        _deletionRequests = deletionRequests;
+        _notifications = notifications;
+    }
 
     [HttpGet("profile")]
     [ProducesResponseType(typeof(ApiResponse<ProfileResponse>), StatusCodes.Status200OK)]
@@ -51,6 +62,35 @@ public sealed class ProfileController : ApiControllerBase
     public async Task<IActionResult> SetSkills([FromBody] SetSkillsRequest request, CancellationToken ct)
     {
         await _profiles.SetSkillsAsync(CurrentUserId, request.SkillIds, ct);
+        return NoContent();
+    }
+
+    /// <summary>
+    /// Creates a pending account-deletion request. The admin queue
+    /// (<c>GET /api/v1/admin/deletion-requests</c>) resolves it later.
+    /// </summary>
+    [HttpPost("deletion-request")]
+    [ProducesResponseType(typeof(ApiResponse<DeletionRequestResponse>), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(ApiResponse<object?>), StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<ApiResponse<DeletionRequestResponse>>> RequestDeletion(CancellationToken ct) =>
+        CreatedEnvelope(await _deletionRequests.RequestAsync(CurrentUserId, ct));
+
+    /// <summary>Notification centre: newest first, paged like every other list endpoint.</summary>
+    [HttpGet("notifications")]
+    [ProducesResponseType(typeof(ApiResponse<PagedResult<NotificationDto>>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<ApiResponse<PagedResult<NotificationDto>>>> GetNotifications(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20,
+        CancellationToken ct = default) =>
+        Ok(Envelope(await _notifications.GetForRecipientAsync(CurrentUserId, page, pageSize, ct)));
+
+    /// <summary>Marks one notification as read; idempotent and scoped to the caller.</summary>
+    [HttpPut("notifications/{notificationId:guid}/read")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(ApiResponse<object?>), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> MarkNotificationRead(Guid notificationId, CancellationToken ct)
+    {
+        await _notifications.MarkReadAsync(CurrentUserId, notificationId, ct);
         return NoContent();
     }
 }

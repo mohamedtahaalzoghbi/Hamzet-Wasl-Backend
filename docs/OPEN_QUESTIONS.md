@@ -129,22 +129,24 @@ There are no tables for governorates, areas, business fields, or employee ranges
 
 ### Q21 — Creating a deletion request
 
-MASTER_PROMPT §1.4 requires the deletion to go through the `DELETION_REQUEST` flow. Phase 1
-implements the admin side (the queue and the resolve with the anonymisation) but **no endpoint
-creates the request**, so the admin queue stays empty until the account screen of the app exists.
+**Resolved (Phase 1, post-review).** `POST /api/v1/me/deletion-request` creates the `pending`
+row for the caller and answers 201 with `{deletionRequestId, status, requestedAt}`; a second call
+while one is pending answers 409 `DELETION_REQUEST_ALREADY_PENDING`. The admin side (queue +
+resolve with anonymisation) already existed, so the queue is now reachable end-to-end.
 
-**Default used:** Nothing is built without the matching screen. The pending work is a
-`POST /me/deletion-request` (and `DELETE /me/deletion-request/{id}`) with the consent rules of
-the Figma screens; it must be added before the account-deletion feature is announced.
+**Not exposed:** a withdraw/cancel endpoint (`DELETE /me/deletion-request/{id}`) because the
+Figma has no such action. The filtered unique index that would close the concurrent-duplicate
+race is deferred to the schema batch.
 
 ### Q22 — Listing the notifications
 
-Phase 1 stores the notifications in `NOTIFICATION` and pushes them over SignalR, but there is no
-`GET /me/notifications` endpoint and `read_at` is never set.
+**Resolved (Phase 1, post-review).** `GET /api/v1/me/notifications?page=1&pageSize=20` returns
+the caller's notifications newest first (paged, `pageSize` clamped to 1..100) and
+`PUT /api/v1/me/notifications/{id}/read` writes `NOTIFICATION.read_at` (idempotent, 404 for an
+id that belongs to another user). `read_at` is therefore no longer dead.
 
-**Default used:** Nothing is built without the matching screen. The pending work is a paged
-`GET /me/notifications` with a mark-as-read action, needed as soon as the app shows a
-notification centre (and required for Phase 2, where the help module produces many events).
+**Known limitation:** `payloadJson` (the notification target) is only carried by the live SignalR
+event because the table has no column for it; see `docs/DEVIATIONS.md` entry 19.
 
 ## B. Assumptions
 

@@ -76,6 +76,7 @@ public static class DependencyInjection
         services.AddScoped<IAuthService, AuthService>();
         services.AddScoped<IProfileService, ProfileService>();
         services.AddScoped<IAccessibilityService, AccessibilityService>();
+        services.AddScoped<IDeletionRequestService, DeletionRequestService>();
         services.AddScoped<IMetaService, MetaService>();
         services.AddScoped<IVolunteerService, VolunteerService>();
         services.AddScoped<IOrganizationService, OrganizationService>();
