@@ -41,11 +41,9 @@ public sealed class HamzetWaslWebApplicationFactory : WebApplicationFactory<Prog
                 ["ConnectionStrings:DefaultConnection"] = _connectionString,
                 ["SkipDatabaseInitialization"] = "true",
 
-                // The signing keys are provided by the test host itself, so the suite never
-                // depends on a local appsettings.Development.json (which is never committed).
-                ["Jwt:SigningKey"] = "integration-test-signing-key-that-is-long-enough-0123456789",
-                ["Storage:SigningKey"] = "integration-test-storage-key-that-is-long-enough-0123456789",
-                ["Otp:HashKey"] = "integration-test-otp-key-that-is-long-enough-0123456789",
+                // The signing keys and the seeded admin are provided by the environment
+                // (see ApiFixture): the JSON configuration files are applied after this
+                // in-memory collection, so they would win over these values.
 
                 // The suite performs many authentication calls from one address; the limits
                 // are raised so the functional tests are not throttled. The limiter itself is

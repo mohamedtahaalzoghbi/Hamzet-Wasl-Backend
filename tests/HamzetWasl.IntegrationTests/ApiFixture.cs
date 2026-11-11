@@ -22,6 +22,16 @@ public sealed class ApiFixture : IAsyncLifetime
     private const string UserVariable = "HW_TEST_SQL_USER";
     private const string PasswordVariable = "HW_TEST_SQL_PASSWORD";
 
+    // The signing keys and the seeded admin come from the environment, never from a local
+    // appsettings.Development.json (the repository does not commit one). They must be
+    // environment variables because the host reads appsettings.json *after* the in-memory
+    // configuration of the test host, and that file carries those keys empty.
+    private const string TestSigningKey = "integration-test-signing-key-that-is-long-enough-0123456789";
+
+    private const string TestStorageKey = "integration-test-storage-key-that-is-long-enough-0123456789";
+
+    private const string TestOtpKey = "integration-test-otp-key-that-is-long-enough-0123456789";
+
     private string _databaseName = default!;
     private string _connectionString = default!;
     private string _masterConnectionString = default!;
@@ -55,16 +65,18 @@ public sealed class ApiFixture : IAsyncLifetime
         // already registered with the LocalDB default.
         Environment.SetEnvironmentVariable("ConnectionStrings__DefaultConnection", _connectionString);
 
-        Factory = new HamzetWaslWebApplicationFactory(
-            _connectionString,
-            new Dictionary<string, string?>
-            {
-                // The seeded admin comes from the configuration, not from a committed file,
-                // so the suite behaves the same on every machine.
-                ["Seed:AdminEmail"] = "admin@hamzetwasl.local",
-                ["Seed:AdminPhone"] = "01000000000",
-                ["Seed:AdminPassword"] = "Admin@12345"
-            });
+        // Same rule for the signing keys and the seeded admin: the JSON configuration files
+        // are applied after the in-memory collection of the test host, so these values must
+        // arrive through the environment. That is what makes the suite independent from any
+        // local configuration file.
+        Environment.SetEnvironmentVariable("Jwt__SigningKey", TestSigningKey);
+        Environment.SetEnvironmentVariable("Storage__SigningKey", TestStorageKey);
+        Environment.SetEnvironmentVariable("Otp__HashKey", TestOtpKey);
+        Environment.SetEnvironmentVariable("Seed__AdminEmail", "admin@hamzetwasl.local");
+        Environment.SetEnvironmentVariable("Seed__AdminPhone", "01000000000");
+        Environment.SetEnvironmentVariable("Seed__AdminPassword", "Admin@12345");
+
+        Factory = new HamzetWaslWebApplicationFactory(_connectionString);
         AnonymousClient = Factory.CreateClient(new WebApplicationFactoryClientOptions
         {
             BaseAddress = new Uri("http://localhost")
