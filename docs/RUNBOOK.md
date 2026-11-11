@@ -24,7 +24,7 @@ sqllocaldb start MSSQLLocalDB
 | Remote | `https://github.com/mohamedtahaalzoghbi/hamzet-wasl-backend` (private) |
 | Branch | `main` |
 | Pipeline | `.github/workflows/ci.yml` — build (warnings as errors), unit + integration tests on a SQL Server 2022 container, OpenAPI drift check, secret scan |
-| Last green run | 121 unit tests + 30 integration tests, 0 warnings, `docs/openapi.json` in sync |
+| Last green run | 131 unit tests + 41 integration tests, 0 warnings, `docs/openapi.json` in sync |
 
 Any push to `main` (and every pull request) runs the pipeline; the branch must stay green.
 
@@ -61,7 +61,7 @@ dotnet run --project src/HamzetWasl.Api
 First start performs (unless `SkipDatabaseInitialization=true`):
 
 1. Creates the database if it does not exist yet.
-2. Applies `Hamzet_Wasl_Schema_v2.sql` (all 60 domain tables) if the domain tables are missing.
+2. Applies `Hamzet_Wasl_Schema_v2.sql` (all 62 domain tables) if the domain tables are missing.
 3. `IdentitySchemaInitializer` creates the `AspNet*` Identity tables.
 4. `DatabaseSeeder` seeds roles, lookups, training module, feature registry, and the admin user.
 
@@ -94,11 +94,11 @@ dotnet test tests/HamzetWasl.UnitTests/HamzetWasl.UnitTests.csproj        # fast
 dotnet test tests/HamzetWasl.IntegrationTests/HamzetWasl.IntegrationTests.csproj
 ```
 
-Unit tests (121) cover the §1.9 business rules, the validators, the phone normaliser, the file
+Unit tests (131) cover the §1.9 business rules, the validators, the phone normaliser, the file
 rules, the token purposes, the UTC serialisation, the accessibility preset and the **schema parity
 test** (EF model vs `Hamzet_Wasl_Schema_v2.sql`).
 
-Integration tests (30) run against a real SQL Server:
+Integration tests (41) run against a real SQL Server:
 
 - create a unique `HamzetWasl_IT_<guid>` database,
 - apply `Hamzet_Wasl_Schema_v2.sql` exactly as shipped (batch splitter on `GO`),

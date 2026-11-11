@@ -26,7 +26,7 @@ The EF model includes Identity tables that are not part of the 62-table SQL scri
 source of truth: it is embedded in `HamzetWasl.Infrastructure` and applied by `SchemaBootstrapper`
 whenever the domain tables are missing. Two tests guard the parity:
 
-- `SchemaMatchesSqlTests` (unit) compares the EF store model with the parsed script for all 60
+- `SchemaMatchesSqlTests` (unit) compares the EF store model with the parsed script for all 62
   tables: table set, columns (name, type, nullability), primary keys, foreign keys, unique
   constraints and indexes. `AspNet*` tables are allowlisted; the EF model must not declare a
   CHECK constraint that the script does not contain.
