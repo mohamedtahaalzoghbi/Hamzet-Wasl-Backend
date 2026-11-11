@@ -54,8 +54,21 @@ public sealed class ApiEnumSchemaFilter : ISchemaFilter
                 continue;
             }
 
-            propertySchema.Enum = values.Select(value => (JsonNode)JsonValue.Create(value)!).ToList();
-            propertySchema.Type = JsonSchemaType.String;
+            var enumValues = values.Select(value => (JsonNode)JsonValue.Create(value)!).ToList();
+
+            // A collection (for example needTypes) must stay an array: the allowed values belong
+            // to its items, not to the property itself. Overriding the property type to string
+            // here would publish an invalid contract for the multi-need-type list.
+            if (propertySchema.Items is OpenApiSchema itemsSchema)
+            {
+                itemsSchema.Enum = enumValues;
+                itemsSchema.Type = JsonSchemaType.String;
+            }
+            else
+            {
+                propertySchema.Enum = enumValues;
+                propertySchema.Type = JsonSchemaType.String;
+            }
         }
     }
 }

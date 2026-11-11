@@ -33,7 +33,15 @@ public sealed class SetSkillsRequest
 
 public sealed class UpsertAccessibilityRequest
 {
+    /// <summary>الفئة الأساسية التي تُخزَّن في <c>ACCESSIBILITY_PROFILE.need_type_id</c>.</summary>
     public string NeedType { get; set; } = string.Empty;
+
+    /// <summary>
+    /// الفئات المطلوبة (1 إلى 3). العنصر الأول يجب أن يطابق <see cref="NeedType"/>؛
+    /// عند تركه <c>null</c> يُعتبر الطلب فئة واحدة (توافق مع العملاء القدامى).
+    /// </summary>
+    public IReadOnlyList<string>? NeedTypes { get; set; }
+
     public string Theme { get; set; } = "system";
     public decimal FontScale { get; set; } = 1.0m;
     public bool ReducedMotion { get; set; }
@@ -56,6 +64,7 @@ public sealed record AccessibilityPresetDto(
 public sealed record AccessibilityResponse(
     Guid UserId,
     string NeedType,
+    IReadOnlyList<string> NeedTypes,
     string Theme,
     decimal FontScale,
     bool ReducedMotion,

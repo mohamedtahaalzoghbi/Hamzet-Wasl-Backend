@@ -55,6 +55,7 @@ public sealed class AdminService : IAdminService
 
         var total = await query.CountAsync(ct);
         var items = await query.OrderByDescending(r => r.InterviewAt ?? DateTime.MinValue)
+            .ThenByDescending(r => r.CreatedAt)
             .ThenByDescending(r => r.ReviewId)
             .Skip((page - 1) * pageSize).Take(pageSize)
             .Select(r => new VolunteerReviewListItemDto(

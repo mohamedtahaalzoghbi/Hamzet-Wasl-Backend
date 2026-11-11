@@ -5,7 +5,7 @@ namespace HamzetWasl.Infrastructure.Persistence;
 /// <summary>
 /// Creates the ASP.NET Core Identity tables in a database whose domain tables
 /// were created from Hamzet_Wasl_Schema_v2.sql. Identity tables are outside the
-/// authoritative 60-table schema and are intentionally initialised separately.
+/// authoritative 62-table schema and are intentionally initialised separately.
 /// </summary>
 public static class IdentitySchemaInitializer
 {

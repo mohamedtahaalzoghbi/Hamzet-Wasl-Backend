@@ -25,6 +25,8 @@ public partial class HamzetWaslDbContext : IdentityDbContext<AppUser, IdentityRo
 
     public virtual DbSet<ApplicationStatusChange> ApplicationStatusChanges { get; set; }
 
+    public virtual DbSet<Area> Areas { get; set; }
+
     public virtual DbSet<AssistantLog> AssistantLogs { get; set; }
 
     public virtual DbSet<AvailabilitySlot> AvailabilitySlots { get; set; }
@@ -50,6 +52,8 @@ public partial class HamzetWaslDbContext : IdentityDbContext<AppUser, IdentityRo
     public virtual DbSet<FacilityType> FacilityTypes { get; set; }
 
     public virtual DbSet<FeatureRegistry> FeatureRegistries { get; set; }
+
+    public virtual DbSet<Governorate> Governorates { get; set; }
 
     public virtual DbSet<HelpAssignment> HelpAssignments { get; set; }
 
@@ -194,6 +198,54 @@ public partial class HamzetWaslDbContext : IdentityDbContext<AppUser, IdentityRo
             entity.Property(e => e.Name)
                 .HasMaxLength(200)
                 .HasColumnName("name");
+        });
+
+        modelBuilder.Entity<Area>(entity =>
+        {
+            entity.HasKey(e => e.AreaId);
+
+            entity.ToTable("AREA");
+
+            entity.HasIndex(e => new { e.GovernorateId, e.Code }, "UQ_AREA_governorate_code").IsUnique();
+
+            entity.HasIndex(e => e.GovernorateId, "IX_AREA_governorate_id");
+
+            entity.Property(e => e.AreaId)
+                .ValueGeneratedOnAdd()
+                .HasColumnName("area_id");
+            entity.Property(e => e.Code)
+                .HasMaxLength(50)
+                .HasColumnName("code");
+            entity.Property(e => e.GovernorateId).HasColumnName("governorate_id");
+            entity.Property(e => e.IsActive).HasColumnName("is_active");
+            entity.Property(e => e.NameAr)
+                .HasMaxLength(100)
+                .HasColumnName("name_ar");
+
+            entity.HasOne(d => d.Governorate).WithMany(p => p.Areas)
+                .HasForeignKey(d => d.GovernorateId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_AREA_governorate_id");
+        });
+
+        modelBuilder.Entity<Governorate>(entity =>
+        {
+            entity.HasKey(e => e.GovernorateId);
+
+            entity.ToTable("GOVERNORATE");
+
+            entity.HasIndex(e => e.Code, "UQ_GOVERNORATE_code").IsUnique();
+
+            entity.Property(e => e.GovernorateId)
+                .ValueGeneratedOnAdd()
+                .HasColumnName("governorate_id");
+            entity.Property(e => e.Code)
+                .HasMaxLength(50)
+                .HasColumnName("code");
+            entity.Property(e => e.IsActive).HasColumnName("is_active");
+            entity.Property(e => e.NameAr)
+                .HasMaxLength(100)
+                .HasColumnName("name_ar");
         });
 
         modelBuilder.Entity<AccountRole>(entity =>
@@ -1849,6 +1901,10 @@ public partial class HamzetWaslDbContext : IdentityDbContext<AppUser, IdentityRo
             entity.Property(e => e.DecidedAt)
                 .HasPrecision(0)
                 .HasColumnName("decided_at");
+            entity.Property(e => e.CreatedAt)
+                .HasPrecision(0)
+                .HasDefaultValueSql("(sysutcdatetime())", "DF_VERIFICATION_REVIEW_created_at")
+                .HasColumnName("created_at");
             entity.Property(e => e.InterviewAt)
                 .HasPrecision(0)
                 .HasColumnName("interview_at");

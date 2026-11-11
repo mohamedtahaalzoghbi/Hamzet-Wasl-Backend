@@ -10,7 +10,7 @@ This file records unresolved decisions. Code that depends on a default below is 
 
 **Default used:** `AspNetUsers` (ASP.NET Core Identity tables) is the authentication table. `USER_ACCOUNT` remains the exact domain table. They share `user_id` and are linked logically (and by an FK from `AspNetUsers.Id` to `USER_ACCOUNT.user_id`, an Identity-only table). Email, phone, and verified flags are synchronised by the account service.
 
-**Consequence:** The schema-comparison test covers the 60 domain tables only. Identity tables are explicitly allowlisted.
+**Consequence:** The schema-comparison test covers the 62 domain tables only. Identity tables are explicitly allowlisted.
 
 ### Q2 — Refresh tokens and OTP throttling
 
@@ -20,7 +20,7 @@ There is no table or column for refresh tokens, OTP attempt counts, or resend ti
 
 ### Q3 — Schema test scope
 
-The EF model includes Identity tables that are not part of the 60-table SQL script.
+The EF model includes Identity tables that are not part of the 62-table SQL script.
 
 **Default used:** **No EF Core migrations are used.** `Hamzet_Wasl_Schema_v2.sql` is the single
 source of truth: it is embedded in `HamzetWasl.Infrastructure` and applied by `SchemaBootstrapper`
@@ -30,7 +30,7 @@ whenever the domain tables are missing. Two tests guard the parity:
   tables: table set, columns (name, type, nullability), primary keys, foreign keys, unique
   constraints and indexes. `AspNet*` tables are allowlisted; the EF model must not declare a
   CHECK constraint that the script does not contain.
-- `SchemaAppliedTests` (integration) compares the **applied database** with the script: the 60
+- `SchemaAppliedTests` (integration) compares the **applied database** with the script: the 62
   tables, the CHECK constraints (by the values they allow), the 86 foreign keys, the unique
   constraints and the 69 indexes.
 
@@ -46,12 +46,12 @@ Many status columns have no SQL `CHECK`. Proposed values are in §C below.
 
 The master prompt says exactly one `need_type_id`; the Figma export says “one or more”.
 
-**Default used:** Exactly one `need_type_id` in the table. The API rejects more than one in the
-`needType` field. Several simultaneous needs are expressed through `manual_overrides.needTypes`
-(`["visual","hearing"]`), and the calculated `effectivePreset` merges the need-type defaults
-without overwriting the user's own preferences (see `docs/API_CONTRACT.md` §5). The client must
-use a single-select interface for the stored need type or map a multi-select to the
-`manual_overrides` list.
+**Default used:** Exactly one primary `need_type_id` in the table. The API accepts up to three
+needs through the optional `needTypes` list of `PUT /me/accessibility` (the first must equal
+`needType`); the extra needs are stored in `manual_overrides.needTypes` (`["visual","hearing"]`),
+and the calculated `effectivePreset` merges the need-type defaults without overwriting the user's
+own preferences (see `docs/API_CONTRACT.md` §5). The client can therefore use a multi-select of up
+to three needs.
 
 ### Q6 — OTP length
 

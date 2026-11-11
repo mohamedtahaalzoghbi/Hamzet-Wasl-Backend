@@ -4,8 +4,9 @@ namespace HamzetWasl.Application.Metadata;
 
 /// <summary>
 /// Static reference data for values that have no dedicated table in the SQL
-/// schema (governorates, areas, business fields, employee ranges, and starter
-/// skill/interest/accommodation lists).
+/// schema (business fields, employee ranges, and starter skill/interest/
+/// accommodation lists). The governorates/areas here are the <b>fallback</b>
+/// catalogue: the live data is read from GOVERNORATE/AREA by IGeoCatalog.
 /// </summary>
 public static class MetaCatalog
 {

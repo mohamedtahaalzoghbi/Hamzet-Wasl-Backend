@@ -2,6 +2,7 @@ using HamzetWasl.Application.Common;
 using HamzetWasl.Application.Contracts.Profile;
 using HamzetWasl.Application.Interfaces;
 using HamzetWasl.Domain.Entities;
+using HamzetWasl.Domain.Rules;
 using HamzetWasl.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
@@ -126,6 +127,13 @@ public sealed class AccessibilityService : IAccessibilityService
         var needType = await _db.NeedTypes.FirstOrDefaultAsync(n => n.Name == request.NeedType, ct)
                        ?? throw AppException.Validation(new Dictionary<string, string[]> { ["needType"] = ["نوع الاحتياج غير صحيح."] });
 
+        // دمج الفئات المتعددة في manual_overrides.needTypes بدلاً من تغيير المخطط:
+        // الفئة الأساسية تبقى في need_type_id، والإضافات تُحفظ كـ JSON.
+        var manualOverrides = AccessibilityOverrides.Merge(
+            request.ManualOverrides?.GetRawText(),
+            request.NeedTypes,
+            request.NeedType);
+
         var now = _clock.UtcNow;
         var profile = await _db.AccessibilityProfiles.FirstOrDefaultAsync(p => p.UserId == userId, ct);
         var consentId = profile?.ConsentId;
@@ -156,7 +164,7 @@ public sealed class AccessibilityService : IAccessibilityService
                 ReducedMotion = request.ReducedMotion,
                 InteractionMode = request.InteractionMode,
                 NotificationMode = request.NotificationMode,
-                ManualOverrides = request.ManualOverrides?.GetRawText(),
+                ManualOverrides = manualOverrides,
                 UpdatedAt = now
             };
             _db.AccessibilityProfiles.Add(profile);
@@ -170,7 +178,7 @@ public sealed class AccessibilityService : IAccessibilityService
             profile.ReducedMotion = request.ReducedMotion;
             profile.InteractionMode = request.InteractionMode;
             profile.NotificationMode = request.NotificationMode;
-            profile.ManualOverrides = request.ManualOverrides?.GetRawText();
+            profile.ManualOverrides = manualOverrides;
             profile.UpdatedAt = now;
         }
 
@@ -236,6 +244,7 @@ public sealed class AccessibilityService : IAccessibilityService
         return new AccessibilityResponse(
             profile.UserId,
             profile.NeedType?.Name ?? string.Empty,
+            preset.NeedTypes,
             profile.Theme,
             profile.FontScale,
             profile.ReducedMotion,

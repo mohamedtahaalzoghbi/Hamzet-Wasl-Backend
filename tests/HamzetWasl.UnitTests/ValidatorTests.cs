@@ -7,6 +7,7 @@ using HamzetWasl.Application.Contracts.Organization;
 using HamzetWasl.Application.Contracts.Profile;
 using HamzetWasl.Application.Contracts.Volunteer;
 using HamzetWasl.Application.Validation;
+using HamzetWasl.Domain.Rules;
 using Xunit;
 
 namespace HamzetWasl.UnitTests;
@@ -130,6 +131,63 @@ public class ValidatorTests
     }
 
     [Fact]
+    public void Accessibility_need_types_are_one_to_three_distinct_and_primary_first()
+    {
+        var validator = new UpsertAccessibilityRequestValidator();
+        var valid = new UpsertAccessibilityRequest
+        {
+            NeedType = "visual",
+            NeedTypes = new[] { "visual", "hearing" },
+            Theme = "system",
+            FontScale = 1.0m,
+            ReducedMotion = false,
+            InteractionMode = "touch",
+            NotificationMode = "in_app",
+            ManualOverrides = null
+        };
+        Assert.True(validator.Validate(valid).IsValid);
+
+        // فئة واحدة مقبولة، وغياب الحقل يعني فئة واحدة (توافق مع العملاء القدامى).
+        Assert.True(validator.Validate(Mut(valid, x => x.NeedTypes = new[] { "visual" })).IsValid);
+        Assert.True(validator.Validate(Mut(valid, x => x.NeedTypes = null)).IsValid);
+
+        // صفر فئات، أربع فئات، تكرار، عدم تطابق الفئة الأولى، وفئة غير معروفة: كلها مرفوضة.
+        Assert.False(validator.Validate(Mut(valid, x => x.NeedTypes = Array.Empty<string>())).IsValid);
+        Assert.False(validator.Validate(Mut(valid, x =>
+            x.NeedTypes = new[] { "visual", "hearing", "motor", "visual" })).IsValid);
+        Assert.False(validator.Validate(Mut(valid, x => x.NeedTypes = new[] { "visual", "visual" })).IsValid);
+        Assert.False(validator.Validate(Mut(valid, x => x.NeedTypes = new[] { "hearing", "visual" })).IsValid);
+        Assert.False(validator.Validate(Mut(valid, x => x.NeedTypes = new[] { "visual", "other" })).IsValid);
+    }
+
+    [Fact]
+    public void Accessibility_manual_overrides_are_limited_to_four_kilobytes()
+    {
+        var validator = new UpsertAccessibilityRequestValidator();
+        var valid = new UpsertAccessibilityRequest
+        {
+            NeedType = "visual",
+            Theme = "system",
+            FontScale = 1.0m,
+            ReducedMotion = false,
+            InteractionMode = "touch",
+            NotificationMode = "in_app",
+            ManualOverrides = null
+        };
+
+        // ٤ كيلوبايت بالضبط (٨ أحرف للغلاف {"x":"..."}) مقبولة.
+        var atLimit = "{\"x\":\"" + new string('a', AccessibilityOverrides.MaxJsonBytes - 8) + "\"}";
+        Assert.Equal(AccessibilityOverrides.MaxJsonBytes, System.Text.Encoding.UTF8.GetByteCount(atLimit));
+        Assert.True(validator.Validate(Mut(valid, x =>
+            x.ManualOverrides = JsonDocument.Parse(atLimit).RootElement)).IsValid);
+
+        // بايت واحد زيادة مرفوض.
+        var tooLarge = "{\"x\":\"" + new string('a', AccessibilityOverrides.MaxJsonBytes - 7) + "\"}";
+        Assert.False(validator.Validate(Mut(valid, x =>
+            x.ManualOverrides = JsonDocument.Parse(tooLarge).RootElement)).IsValid);
+    }
+
+    [Fact]
     public void Volunteer_profile_accepts_only_known_help_mode_and_skill_level()
     {
         var validator = new UpdateVolunteerProfileRequestValidator();
@@ -150,7 +208,7 @@ public class ValidatorTests
     }
 
     [Fact]
-    public void Volunteer_location_requires_known_governorate_and_area_within_radius()
+    public void Volunteer_location_validator_checks_coordinates_and_radius_only()
     {
         var validator = new VolunteerLocationRequestValidator();
         var valid = new VolunteerLocationRequest
@@ -161,8 +219,11 @@ public class ValidatorTests
         };
         Assert.True(validator.Validate(valid).IsValid);
 
-        Assert.False(validator.Validate(Mut(valid, x => x.Governorate = "paris")).IsValid);
-        Assert.False(validator.Validate(Mut(valid, x => x.ServiceArea = "unknown_area")).IsValid);
+        // The governorate/area rules moved to VolunteerService because the catalogue now lives
+        // in GOVERNORATE/AREA (IGeoCatalog). They are covered by GeoCatalogTests.
+        Assert.True(validator.Validate(Mut(valid, x => x.Governorate = "paris")).IsValid);
+        Assert.True(validator.Validate(Mut(valid, x => x.ServiceArea = "unknown_area")).IsValid);
+
         Assert.False(validator.Validate(Mut(valid, x => x.ServiceRadiusKm = 0)).IsValid);
         Assert.False(validator.Validate(Mut(valid, x => x.ServiceRadiusKm = 201)).IsValid);
         Assert.True(validator.Validate(Mut(valid, x => x.ServiceRadiusKm = null)).IsValid);
@@ -185,7 +246,7 @@ public class ValidatorTests
     }
 
     [Fact]
-    public void Organization_update_accepts_known_metadata_and_valid_website()
+    public void Organization_update_validator_checks_metadata_and_website()
     {
         var validator = new UpdateOrganizationRequestValidator();
         var valid = new UpdateOrganizationRequest
@@ -206,8 +267,11 @@ public class ValidatorTests
         Assert.False(validator.Validate(Mut(valid, x => x.EmployeeCountRange = "2050")).IsValid);
         Assert.False(validator.Validate(Mut(valid, x => x.Website = "ftp://acme.com")).IsValid);
         Assert.False(validator.Validate(Mut(valid, x => x.Website = "not a url")).IsValid);
-        Assert.False(validator.Validate(Mut(valid, x => x.Governorate = "paris")).IsValid);
-        Assert.False(validator.Validate(Mut(valid, x => x.City = "unknown")).IsValid);
+
+        // The governorate/city rules moved to OrganizationService (IGeoCatalog) and are covered
+        // by GeoCatalogTests; the validator must no longer reject them.
+        Assert.True(validator.Validate(Mut(valid, x => x.Governorate = "paris")).IsValid);
+        Assert.True(validator.Validate(Mut(valid, x => x.City = "unknown")).IsValid);
     }
 
     [Fact]

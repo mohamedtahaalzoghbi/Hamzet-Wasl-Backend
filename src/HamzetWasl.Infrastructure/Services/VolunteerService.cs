@@ -17,6 +17,7 @@ public sealed class VolunteerService : IVolunteerService
     private readonly IFileStorage _storage;
     private readonly StorageKeyProtector _protector;
     private readonly INotificationService _notifications;
+    private readonly IGeoCatalog _geo;
     private readonly IClock _clock;
     private readonly RetentionOptions _retention;
 
@@ -25,6 +26,7 @@ public sealed class VolunteerService : IVolunteerService
         IFileStorage storage,
         StorageKeyProtector protector,
         INotificationService notifications,
+        IGeoCatalog geo,
         IClock clock,
         IOptions<RetentionOptions> retention)
     {
@@ -32,6 +34,7 @@ public sealed class VolunteerService : IVolunteerService
         _storage = storage;
         _protector = protector;
         _notifications = notifications;
+        _geo = geo;
         _clock = clock;
         _retention = retention.Value;
     }
@@ -75,9 +78,10 @@ public sealed class VolunteerService : IVolunteerService
     public async Task<VolunteerLocationResponse> UpdateLocationAsync(Guid userId, VolunteerLocationRequest request, CancellationToken ct = default)
     {
         var profile = await GetVolunteerAsync(userId, ct);
-        var governorate = Application.Metadata.MetaCatalog.FindGovernorate(request.Governorate)
+        // التحقق من الكتالوج الديناميكي (قاعدة البيانات) بدلاً من القائمة الثابتة.
+        var governorate = await _geo.FindGovernorateAsync(request.Governorate, ct)
                           ?? throw AppException.Validation(new Dictionary<string, string[]> { ["governorate"] = ["المحافظة غير صحيحة."] });
-        var area = Application.Metadata.MetaCatalog.FindArea(governorate, request.ServiceArea)
+        var area = await _geo.FindAreaAsync(governorate, request.ServiceArea, ct)
                    ?? throw AppException.Validation(new Dictionary<string, string[]> { ["serviceArea"] = ["المنطقة غير صحيحة."] });
 
         profile.Governorate = governorate.Key;
@@ -438,14 +442,16 @@ public sealed class VolunteerService : IVolunteerService
         await _db.VerificationReviews
             .Include(r => r.VerificationEvidences)
             .Where(r => r.VolunteerId == userId)
-            .OrderByDescending(r => r.ReviewId)
+            .OrderByDescending(r => r.CreatedAt)
+            .ThenByDescending(r => r.ReviewId)
             .FirstOrDefaultAsync(ct);
 
     private async Task<VerificationReview> GetOrCreateReviewAsync(VolunteerProfile profile, CancellationToken ct)
     {
         var review = await _db.VerificationReviews
             .Where(r => r.VolunteerId == profile.UserId)
-            .OrderByDescending(r => r.ReviewId)
+            .OrderByDescending(r => r.CreatedAt)
+            .ThenByDescending(r => r.ReviewId)
             .FirstOrDefaultAsync(ct);
 
         if (review is null)
@@ -455,7 +461,9 @@ public sealed class VolunteerService : IVolunteerService
                 ReviewId = Guid.NewGuid(),
                 VolunteerId = profile.UserId,
                 VerificationLevel = profile.HelpMode == HelpModes.OnlineAndField ? VerificationLevels.Field : VerificationLevels.Basic,
-                Status = VerificationReviewStatuses.Draft
+                Status = VerificationReviewStatuses.Draft,
+                // العمود الوحيد الذي يصلح للترتيب الزمني؛ ReviewId عشوائي هنا.
+                CreatedAt = _clock.UtcNow
             };
             _db.VerificationReviews.Add(review);
             await _db.SaveChangesAsync(ct);

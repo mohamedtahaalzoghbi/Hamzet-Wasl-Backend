@@ -21,18 +21,14 @@ public sealed class MetaController : ApiControllerBase
 
     [HttpGet("governorates")]
     [ProducesResponseType(typeof(ApiResponse<IReadOnlyList<GovernorateDto>>), StatusCodes.Status200OK)]
-    public ActionResult<ApiResponse<IReadOnlyList<GovernorateDto>>> GetGovernorates() =>
-        Ok(Envelope(_meta.GetGovernorates()));
+    public async Task<ActionResult<ApiResponse<IReadOnlyList<GovernorateDto>>>> GetGovernorates(CancellationToken ct) =>
+        Ok(Envelope(await _meta.GetGovernoratesAsync(ct)));
 
     [HttpGet("governorates/{governorateKey}/areas")]
     [ProducesResponseType(typeof(ApiResponse<IReadOnlyList<AreaDto>>), StatusCodes.Status200OK)]
-    public ActionResult<ApiResponse<IReadOnlyList<AreaDto>>> GetAreas(string governorateKey)
-    {
-        var governorate = HamzetWasl.Application.Metadata.MetaCatalog.FindGovernorate(governorateKey);
-        return governorate is null
-            ? throw HamzetWasl.Application.Common.AppException.NotFound("المحافظة غير موجودة.")
-            : Ok(Envelope(governorate.Areas));
-    }
+    public async Task<ActionResult<ApiResponse<IReadOnlyList<AreaDto>>>> GetAreas(
+        string governorateKey, CancellationToken ct) =>
+        Ok(Envelope(await _meta.GetAreasAsync(governorateKey, ct)));
 
     [HttpGet("business-fields")]
     [ProducesResponseType(typeof(ApiResponse<IReadOnlyList<BusinessFieldDto>>), StatusCodes.Status200OK)]

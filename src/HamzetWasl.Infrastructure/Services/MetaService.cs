@@ -1,3 +1,4 @@
+using HamzetWasl.Application.Common;
 using HamzetWasl.Application.Contracts.Meta;
 using HamzetWasl.Application.Interfaces;
 using HamzetWasl.Application.Metadata;
@@ -9,11 +10,26 @@ namespace HamzetWasl.Infrastructure.Services;
 public sealed class MetaService : IMetaService
 {
     private readonly HamzetWaslDbContext _db;
+    private readonly IGeoCatalog _geo;
 
-    public MetaService(HamzetWaslDbContext db) => _db = db;
+    public MetaService(HamzetWaslDbContext db, IGeoCatalog geo)
+    {
+        _db = db;
+        _geo = geo;
+    }
 
     public IReadOnlyList<AccountTypeDto> GetAccountTypes() => MetaCatalog.AccountTypes;
-    public IReadOnlyList<GovernorateDto> GetGovernorates() => MetaCatalog.Governorates;
+
+    public async Task<IReadOnlyList<GovernorateDto>> GetGovernoratesAsync(CancellationToken ct = default) =>
+        await _geo.GetGovernoratesAsync(ct);
+
+    public async Task<IReadOnlyList<AreaDto>> GetAreasAsync(string governorateKey, CancellationToken ct = default)
+    {
+        var governorate = await _geo.FindGovernorateAsync(governorateKey, ct)
+                          ?? throw AppException.NotFound("المحافظة غير موجودة.");
+        return governorate.Areas;
+    }
+
     public IReadOnlyList<BusinessFieldDto> GetBusinessFields() => MetaCatalog.BusinessFields;
     public IReadOnlyList<EmployeeRangeDto> GetEmployeeRanges() => MetaCatalog.EmployeeRanges;
 

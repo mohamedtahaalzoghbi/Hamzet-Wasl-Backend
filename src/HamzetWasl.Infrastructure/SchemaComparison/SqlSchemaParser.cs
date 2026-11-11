@@ -37,7 +37,7 @@ public sealed record SqlSchema(
 }
 
 /// <summary>
-/// Parses Hamzet_Wasl_Schema_v2.sql into normalised metadata: the 60 domain tables
+/// Parses Hamzet_Wasl_Schema_v2.sql into normalised metadata: the 62 domain tables
 /// with their columns (name/type/nullability/identity), primary keys, unique
 /// constraints (inline + CREATE UNIQUE INDEX), CHECK constraints, plain indexes
 /// (CREATE INDEX) and foreign keys (ALTER TABLE ... ADD CONSTRAINT ... FOREIGN KEY).

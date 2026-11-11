@@ -21,6 +21,12 @@ public partial class VerificationReview
 
     public DateTime? DecidedAt { get; set; }
 
+    /// <summary>
+    /// لحظة إنشاء صف المراجعة. لا يمكن الاعتماد على <see cref="ReviewId"/> للترتيب لأن
+    /// الخدمة تنشئه بـ <c>Guid.NewGuid()</c> (عشوائي) وليس بـ <c>NEWSEQUENTIALID()</c>.
+    /// </summary>
+    public DateTime CreatedAt { get; set; }
+
     public virtual InterviewSlot? InterviewSlot { get; set; }
 
     public virtual UserAccount? Reviewer { get; set; }

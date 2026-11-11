@@ -1,6 +1,6 @@
 # ERD → API Map
 
-How the 60 authoritative tables in `Hamzet_Wasl_Schema_v2.sql` (plus the Identity allowlist)
+How the 62 authoritative tables in `Hamzet_Wasl_Schema_v2.sql` (plus the Identity allowlist)
 map to Phase-1 endpoints, services, and code. Full contracts live in `docs/API_CONTRACT.md`.
 
 Legend:
@@ -31,6 +31,17 @@ Legend:
 | `ACCESSIBILITY_PROFILE` | CRUD | `GET/PUT/DELETE /me/accessibility` |
 | `ACCOMMODATION` | seed | `GET /meta/accommodations` |
 | `NEED_TYPE` | seed | `GET /meta/need-types` |
+
+## Reference data (geo)
+
+| Table | Access | Endpoint |
+|---|---|---|
+| `GOVERNORATE` | seed / read | `GET /meta/governorates`; also validated by the volunteer and organization profiles |
+| `AREA` | seed / read | `GET /meta/governorates/{key}/areas`; the code is unique per governorate |
+
+Both tables are filled from `MetaCatalog` by `DatabaseSeeder` on the first run (and by
+`Hamzet_Wasl_Migration_v2_2_geo_tables.sql` on an existing database). Only rows with
+`is_active = 1` are served; the profiles store the stable `code`, never the display name.
 
 ## Volunteers
 
@@ -84,6 +95,6 @@ Their planned gating (already encoded in `BusinessRules`):
 
 ## Table count check
 
-The schema defines exactly 60 tables. The mapping above covers all of them, and
+The schema defines exactly 62 tables. The mapping above covers all of them, and
 `SchemaMatchesSqlTests` (unit) plus `SchemaAppliedTests` (integration) fail the build if the
 EF model or the applied database drifts from `Hamzet_Wasl_Schema_v2.sql`.

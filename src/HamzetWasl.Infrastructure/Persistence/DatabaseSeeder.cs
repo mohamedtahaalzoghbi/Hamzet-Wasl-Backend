@@ -35,8 +35,51 @@ public sealed class DatabaseSeeder
     {
         await SeedRolesAsync(ct);
         await SeedLookupsAsync(ct);
+        await SeedGeoAsync(ct);
         await SeedTrainingAsync(ct);
         await SeedAdminAsync(ct);
+    }
+
+    /// <summary>
+    /// يملأ GOVERNORATE/AREA من <see cref="MetaCatalog"/> عند أول تشغيل. لا يحذف ولا يعطّل
+    /// أي صف موجود، حتى لا يمسح تعديلات الإدارة؛ يضيف فقط ما ينقص بالكود.
+    /// </summary>
+    private async Task SeedGeoAsync(CancellationToken ct)
+    {
+        var governorates = await _db.Governorates.Include(g => g.Areas).ToListAsync(ct);
+
+        foreach (var item in MetaCatalog.Governorates)
+        {
+            var governorate = governorates.FirstOrDefault(g =>
+                string.Equals(g.Code, item.Key, StringComparison.OrdinalIgnoreCase));
+
+            if (governorate is null)
+            {
+                governorate = new Governorate
+                {
+                    Code = item.Key,
+                    NameAr = item.NameAr,
+                    IsActive = true
+                };
+                _db.Governorates.Add(governorate);
+            }
+
+            foreach (var area in item.Areas)
+            {
+                if (governorate.Areas.All(a =>
+                        !string.Equals(a.Code, area.Key, StringComparison.OrdinalIgnoreCase)))
+                {
+                    governorate.Areas.Add(new Area
+                    {
+                        Code = area.Key,
+                        NameAr = area.NameAr,
+                        IsActive = true
+                    });
+                }
+            }
+        }
+
+        await _db.SaveChangesAsync(ct);
     }
 
     private async Task SeedRolesAsync(CancellationToken ct)

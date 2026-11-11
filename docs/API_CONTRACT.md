@@ -192,6 +192,13 @@ account can take a number over. `POST /auth/phone/verify` applies the number (40
 | GET | `/meta/need-types` | `[{id, key, nameAr, descriptionAr}]` (visual, motor, hearing) |
 | GET | `/meta/accommodations` | `[{id, key, nameAr, category}]` |
 
+The governorate/area lists are **database-backed** (tables `GOVERNORATE` and `AREA`, active rows
+only, cached in memory for ten minutes). While the two tables are empty (a database that has not
+been seeded yet) the static fallback catalogue is served. `{key}` accepts the stable code
+(`cairo`) or the Arabic name (`القاهرة`); an unknown governorate answers **404** `NOT_FOUND`.
+The volunteer-location and organization-profile endpoints validate against the same catalogue and
+answer **400** `VALIDATION_ERROR` with the `governorate`, `serviceArea` or `city` field key.
+
 ## 4. Profile (`RoleNames` any authenticated user)
 
 | Method | Path | Description |
@@ -223,18 +230,27 @@ withdrawal endpoint in Phase 1 because the Figma has no such action.
 
 ```json
 {
-  "needType": "visual",              // visual | motor | hearing — exactly one
+  "needType": "visual",               // primary: visual | motor | hearing
+  "needTypes": ["visual", "hearing"], // optional: 1–3 distinct values; first must equal needType
   "theme": "system",                  // system | light | dark | high_contrast
   "fontScale": 1.0,                  // 1.0 – 2.0
   "reducedMotion": false,
   "interactionMode": "touch",        // touch | keyboard | screen_reader | voice
   "notificationMode": "in_app",      // in_app | push | visual_alert | vibration
-  "manualOverrides": { "any": "json" } // optional; full preset override, client-owned
+  "manualOverrides": { "any": "json" } // optional; JSON object ≤ 4 KB, client-owned
 }
 ```
 
-Response `Accessibility` adds `updatedAt` and `effectivePreset` — the **calculated** preset the
-client should render.
+- `needType` is always stored in `ACCESSIBILITY_PROFILE.need_type_id`; it is the **primary** need.
+- `needTypes` is optional. It accepts **1 to 3** values, rejects duplicates, and its **first item
+  must equal `needType`**. When omitted, the request means `["<needType>"]`, so older clients keep
+  working.
+- The additional needs are stored in `manual_overrides.needTypes` (the schema still has a single
+  `need_type_id` column). If a request contains only one need type, that key is removed.
+- `manualOverrides` must be a valid JSON value and must not exceed **4 KB (4096 bytes, UTF-8)**.
+
+Response `Accessibility` adds `needTypes` (the declared list, primary first), `updatedAt` and
+`effectivePreset` — the **calculated** preset the client should render.
 
 ### How `effectivePreset` is calculated
 
@@ -249,10 +265,11 @@ Precedence: **manual overrides → the user's own preferences → need-type defa
 - A value the user changed away from the neutral baseline is always kept.
 - A value the user never chose (still `system` / `1.0` / `false` / `touch` / `in_app`) is filled
   from the need type.
-- **Several needs at once**: put them in `manualOverrides.needTypes`
-  (`["visual","hearing"]`). The declared `needType` is applied first and the first need type
-  that suggests a value wins; the other needs only fill the values the first one leaves open.
-  The user's own preferences still win over the need types.
+- **Several needs at once**: send them in `needTypes` (`["visual","hearing"]`). The declared
+  `needType` is applied first and the first need type that suggests a value wins; the other needs
+  only fill the values the first one leaves open. The user's own preferences still win over the
+  need types. Older clients may keep writing the same list directly in
+  `manualOverrides.needTypes`; that legacy form is still honoured when `needTypes` is omitted.
 - `manualOverrides` may set `theme`, `fontScale`, `reducedMotion`, `interactionMode`,
   `notificationMode`, `highContrast` and `textDirection` directly; it has the highest priority.
 

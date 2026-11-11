@@ -9,7 +9,7 @@ Status of the Phase-1 delivery. Every box is backed by code and tests; the evide
 - [x] Record open questions and assumptions (`docs/OPEN_QUESTIONS.md`).
 - [x] Solution and four projects + two test projects (`HamzetWasl.slnx`).
 - [x] Database created from `Hamzet_Wasl_Schema_v2.sql` (LocalDB locally, SQL Server container in CI).
-- [x] EF Core model for all 60 tables (no migrations: the script is the source of truth).
+- [x] EF Core model for all 62 tables (no migrations: the script is the source of truth).
 - [x] ASP.NET Core Identity, JWT + rotating refresh tokens, Serilog, Swagger, FluentValidation, SignalR.
 - [x] Response envelope, error middleware, validation filter, Arabic messages.
 - [x] Schema-comparison tests: `SchemaMatchesSqlTests` (unit) and `SchemaAppliedTests` (integration).

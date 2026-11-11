@@ -62,6 +62,7 @@ public static class DependencyInjection
             services.AddDistributedMemoryCache();
         }
 
+        services.AddMemoryCache();
         services.AddSingleton<IClock, Clock>();
         services.AddSingleton<SchemaBootstrapper>();
         services.AddSingleton<ITokenService, TokenService>();
@@ -77,6 +78,7 @@ public static class DependencyInjection
         services.AddScoped<IProfileService, ProfileService>();
         services.AddScoped<IAccessibilityService, AccessibilityService>();
         services.AddScoped<IDeletionRequestService, DeletionRequestService>();
+        services.AddScoped<IGeoCatalog, GeoCatalogService>();
         services.AddScoped<IMetaService, MetaService>();
         services.AddScoped<IVolunteerService, VolunteerService>();
         services.AddScoped<IOrganizationService, OrganizationService>();

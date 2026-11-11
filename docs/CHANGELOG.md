@@ -65,6 +65,73 @@ column used here already exists in `Hamzet_Wasl_Schema_v2.sql`.
   queue, ordering and paging, IDOR isolation, and read idempotency.
 - `docs/openapi.json` regenerated: 59 paths / 69 operations / 116 schemas.
 
+### The Phase 1 UI-alignment round (batch 2): review creation time
+
+Schema change (approved): `VERIFICATION_REVIEW.created_at DATETIME2(0) NOT NULL DEFAULT
+SYSUTCDATETIME()`.
+
+- `Hamzet_Wasl_Schema_v2.sql` is updated; `Hamzet_Wasl_Migration_v2_1_review_created_at.sql`
+  applies the same change to an existing database (backfill: `decided_at`, then `interview_at`,
+  then the migration time; the script is idempotent and has a documented rollback).
+- `VerificationReview.CreatedAt` is set from `IClock.UtcNow` when a review row is created.
+- "The latest review" is now `ORDER BY created_at DESC, review_id DESC` in `VolunteerService`
+  (the verification read and the get-or-create path). The admin queue uses `created_at` as the
+  tie-breaker after `interview_at`; it was `review_id`.
+- Regression: `ReviewOrderingTests` inserts two reviews per case whose ids are the inverse of
+  their timestamps, so any return to `review_id` ordering fails the test (volunteer endpoint and
+  admin queue).
+- No API shape change: the endpoints and DTOs are untouched, so `docs/openapi.json` needs no
+  regeneration.
+
+### The Phase 1 UI-alignment round (batch 3): dynamic governorates and areas
+
+Schema change (approved): the reference catalogue moves into the database.
+
+- Two new tables in `Hamzet_Wasl_Schema_v2.sql`: `GOVERNORATE` (`governorate_id`, unique `code`,
+  `name_ar`, `is_active`) and `AREA` (`area_id`, `governorate_id` FK, unique `(governorate_id,
+  code)`, `name_ar`, `is_active`). Both default `is_active` to 1.
+- `Hamzet_Wasl_Migration_v2_2_geo_tables.sql` creates them on an existing database and seeds the
+  27 governorates and 41 areas from `MetaCatalog`; it is idempotent (creates only what is missing,
+  seeds only an empty table) and carries a documented rollback.
+- `DatabaseSeeder.SeedGeoAsync` fills the tables on the first run and only **adds** missing codes,
+  so an administrator's edits are never overwritten.
+- `IGeoCatalog` / `GeoCatalogService` (Infrastructure) read the active rows with a ten-minute
+  `IMemoryCache`; a completely empty table falls back to the static `MetaCatalog` until seeding,
+  and a table with rows but none active returns an empty list (an explicit admin choice).
+- `GET /meta/governorates` and `GET /meta/governorates/{key}/areas` now read the database
+  (same response shape; `{key}` accepts the code or the Arabic name; unknown → 404 `NOT_FOUND`).
+- The governorate/area rules were removed from `Validators.cs` and moved to `VolunteerService`
+  and `OrganizationService` (the same `governorate` / `serviceArea` / `city` field keys and
+  messages). Codes are stored in `VOLUNTEER_PROFILE.governorate/service_area` and
+  `ORGANIZATION.governorate/city`, so the API contract is unchanged.
+- Regression: `GeoCatalogServiceTests` (unit: empty-table fallback + active-only filtering) and
+  `GeoCatalogTests` (integration: meta lists, inactive-row hiding, and the moved profile
+  validation, including Arabic-name normalisation). `SchemaMatchesSqlTests` and
+  `SchemaAppliedTests` now expect 62 tables.
+- No API shape change: `docs/openapi.json` needs no regeneration.
+
+### The Phase 1 UI-alignment round (batch 4): one or more accessibility need types
+
+No schema change: `ACCESSIBILITY_PROFILE` still has a single `need_type_id` column.
+
+- `PUT /me/accessibility` accepts an optional `needTypes` list (1 to 3 values, no duplicates,
+  first value must equal `needType`). Omitting it means `[needType]`, so existing clients are
+  unaffected. The primary type remains in `need_type_id`; the extra types are stored in
+  `manual_overrides.needTypes` as JSON (`["visual","hearing"]`). A single-type request removes a
+  stale array, so switching from two needs back to one is clean.
+- `manualOverrides` (the free-form preset override) is now limited to 4 KB (4096 bytes, UTF-8)
+  and must still be valid JSON.
+- `AccessibilityResponse` gains `needTypes` (the declared list, primary first); the calculated
+  `effectivePreset.needTypes` continues to expose the same order. `manualOverrides.needTypes`
+  written directly by older clients is still honoured when the new field is omitted.
+- Regression: `AccessibilityOverridesTests` (unit: merge, stale-array removal, legacy JSON,
+  ordering/deduplication, UTF-8 size limit), the new validator cases, and
+  `AccessibilityNeedTypesTests` (integration: one type, two types, persistence, and 400 for four
+  types with a `needTypes` field error).
+- `docs/openapi.json` regenerated: the `needTypes` properties are arrays of the three allowed
+  values in `UpsertAccessibilityRequest`, `AccessibilityResponse` and `AccessibilityPresetDto`
+  (the schema filter previously published the preset list as a string).
+
 ### Earlier changes inside v1
 
 - `POST /me/verification/evidence` (was documented as `PUT`): the evidence type is part of the

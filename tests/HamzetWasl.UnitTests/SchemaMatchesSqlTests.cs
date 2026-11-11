@@ -25,10 +25,10 @@ public class SchemaMatchesSqlTests
     }
 
     [Fact]
-    public void Sql_script_defines_exactly_the_60_domain_tables()
+    public void Sql_script_defines_exactly_the_62_domain_tables()
     {
         var script = SqlSchemaParser.Parse(ReadSchemaScript());
-        Assert.Equal(60, script.TableCount);
+        Assert.Equal(62, script.TableCount);
     }
 
     [Fact]

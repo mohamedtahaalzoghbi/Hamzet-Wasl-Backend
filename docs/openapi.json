@@ -8725,15 +8725,16 @@
             "type": "string"
           },
           "needTypes": {
-            "enum": [
-              "visual",
-              "motor",
-              "hearing"
-            ],
-            "type": "string",
+            "type": "array",
             "items": {
+              "enum": [
+                "visual",
+                "motor",
+                "hearing"
+              ],
               "type": "string"
-            }
+            },
+            "nullable": true
           }
         },
         "additionalProperties": false
@@ -8752,6 +8753,18 @@
               "hearing"
             ],
             "type": "string"
+          },
+          "needTypes": {
+            "type": "array",
+            "items": {
+              "enum": [
+                "visual",
+                "motor",
+                "hearing"
+              ],
+              "type": "string"
+            },
+            "nullable": true
           },
           "theme": {
             "enum": [
@@ -11035,6 +11048,18 @@
               "hearing"
             ],
             "type": "string"
+          },
+          "needTypes": {
+            "type": "array",
+            "items": {
+              "enum": [
+                "visual",
+                "motor",
+                "hearing"
+              ],
+              "type": "string"
+            },
+            "nullable": true
           },
           "theme": {
             "enum": [

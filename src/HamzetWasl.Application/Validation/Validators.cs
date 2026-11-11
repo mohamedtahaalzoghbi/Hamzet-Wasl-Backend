@@ -173,12 +173,38 @@ public sealed class UpsertAccessibilityRequestValidator : AbstractValidator<Upse
     public UpsertAccessibilityRequestValidator()
     {
         RuleFor(x => x.NeedType).Must(NeedTypes.All.Contains).WithMessage("نوع الاحتياج غير صحيح.");
+        RuleFor(x => x.NeedTypes)
+            .Must(v => v is null || v.Count is >= AccessibilityOverrides.MinNeedTypes and <= AccessibilityOverrides.MaxNeedTypes)
+            .WithMessage("يجب اختيار فئة إتاحة واحدة على الأقل، وبحد أقصى ثلاث فئات.");
+        RuleFor(x => x.NeedTypes)
+            .Must(v => v is null || v.Distinct(StringComparer.Ordinal).Count() == v.Count)
+            .WithMessage("لا يمكن تكرار فئة الإتاحة.");
+        RuleFor(x => x.NeedTypes)
+            .Must(v => v is null || v.All(item => item is not null && NeedTypes.All.Contains(item)))
+            .WithMessage("نوع الاحتياج غير صحيح.");
+        RuleFor(x => x).Custom((request, context) =>
+        {
+            // عند غياب الحقل يُعتبر الطلب فئة واحدة (الفئة الأساسية) للتوافق مع العملاء القدامى.
+            if (request.NeedTypes is null || request.NeedTypes.Count == 0)
+            {
+                return;
+            }
+
+            if (!string.Equals(request.NeedTypes[0], request.NeedType, StringComparison.Ordinal))
+            {
+                context.AddFailure(nameof(request.NeedTypes),
+                    "يجب أن تكون الفئة الأولى مطابقة لنوع الاحتياج الأساسي.");
+            }
+        });
         RuleFor(x => x.Theme).Must(AccessibilityThemes.All.Contains).WithMessage("السمة غير صحيحة.");
         RuleFor(x => x.FontScale).InclusiveBetween(1.0m, 2.0m).WithMessage("حجم الخط يجب أن يكون بين ١ و٢.");
         RuleFor(x => x.InteractionMode).Must(InteractionModes.All.Contains).WithMessage("طريقة التفاعل غير صحيحة.");
         RuleFor(x => x.NotificationMode).Must(NotificationModes.All.Contains).WithMessage("طريقة التنبيه غير صحيحة.");
         RuleFor(x => x.ManualOverrides).Must(v => !v.HasValue || BusinessRules.IsValidJson(v.Value.GetRawText()))
             .WithMessage("الإعدادات اليدوية يجب أن تكون JSON صحيحًا.");
+        RuleFor(x => x.ManualOverrides)
+            .Must(v => !v.HasValue || AccessibilityOverrides.IsWithinSizeLimit(v.Value.GetRawText()))
+            .WithMessage("حجم الإعدادات اليدوية يجب ألا يتجاوز ٤ كيلوبايت.");
     }
 }
 
@@ -201,15 +227,8 @@ public sealed class VolunteerLocationRequestValidator : AbstractValidator<Volunt
 {
     public VolunteerLocationRequestValidator()
     {
-        RuleFor(x => x.Governorate).NotEmpty().Must(v => MetaCatalog.FindGovernorate(v) is not null)
-            .WithMessage("المحافظة غير صحيحة.");
-        RuleFor(x => x).Custom((request, context) =>
-        {
-            var governorate = MetaCatalog.FindGovernorate(request.Governorate);
-            if (governorate is null) return;
-            if (MetaCatalog.FindArea(governorate, request.ServiceArea) is null)
-                context.AddFailure(nameof(request.ServiceArea), "المنطقة غير صحيحة.");
-        });
+        // التحقق من المحافظة/المنطقة انتقل إلى VolunteerService لأنه يعتمد على
+        // الكتالوج الديناميكي في قاعدة البيانات (IGeoCatalog) وليس قائمة ثابتة.
         RuleFor(x => x.Latitude).InclusiveBetween(-90m, 90m).When(x => x.Latitude.HasValue)
             .WithMessage("خط العرض غير صحيح.");
         RuleFor(x => x.Longitude).InclusiveBetween(-180m, 180m).When(x => x.Longitude.HasValue)
@@ -316,21 +335,8 @@ public sealed class UpdateOrganizationRequestValidator : AbstractValidator<Updat
             .Must(v => string.IsNullOrWhiteSpace(v) || (Uri.TryCreate(v, UriKind.Absolute, out var u) && u.Scheme is "http" or "https"))
             .WithMessage("الموقع الإلكتروني غير صحيح.");
         RuleFor(x => x.ContactInformation).MaximumLength(2000);
-        RuleFor(x => x).Custom((request, context) =>
-        {
-            if (string.IsNullOrWhiteSpace(request.Governorate)) return;
-            var governorate = MetaCatalog.FindGovernorate(request.Governorate);
-            if (governorate is null)
-            {
-                context.AddFailure(nameof(request.Governorate), "المحافظة غير صحيحة.");
-                return;
-            }
-
-            if (!string.IsNullOrWhiteSpace(request.City) && MetaCatalog.FindArea(governorate, request.City) is null)
-            {
-                context.AddFailure(nameof(request.City), "المنطقة غير صحيحة.");
-            }
-        });
+        // التحقق من المحافظة/المنطقة انتقل إلى OrganizationService لأنه يعتمد على
+        // الكتالوج الديناميكي في قاعدة البيانات (IGeoCatalog) وليس قائمة ثابتة.
     }
 }
 

@@ -1,7 +1,7 @@
 using HamzetWasl.Application.Common;
+using HamzetWasl.Application.Contracts.Meta;
 using HamzetWasl.Application.Contracts.Organization;
 using HamzetWasl.Application.Interfaces;
-using HamzetWasl.Application.Metadata;
 using HamzetWasl.Domain.Constants;
 using HamzetWasl.Domain.Entities;
 using HamzetWasl.Domain.Rules;
@@ -14,12 +14,14 @@ public sealed class OrganizationService : IOrganizationService
 {
     private readonly HamzetWaslDbContext _db;
     private readonly IFileStorage _storage;
+    private readonly IGeoCatalog _geo;
     private readonly IClock _clock;
 
-    public OrganizationService(HamzetWaslDbContext db, IFileStorage storage, IClock clock)
+    public OrganizationService(HamzetWaslDbContext db, IFileStorage storage, IGeoCatalog geo, IClock clock)
     {
         _db = db;
         _storage = storage;
+        _geo = geo;
         _clock = clock;
     }
 
@@ -33,11 +35,28 @@ public sealed class OrganizationService : IOrganizationService
     {
         var organization = await GetOrganizationAsync(userId, ct);
 
+        // التحقق من الكتالوج الديناميكي (GOVERNORATE/AREA) بدلاً من MetaCatalog الثابت.
+        var governorate = await _geo.FindGovernorateAsync(request.Governorate, ct);
+        if (!string.IsNullOrWhiteSpace(request.Governorate) && governorate is null)
+        {
+            throw AppException.Validation(new Dictionary<string, string[]> { ["governorate"] = ["المحافظة غير صحيحة."] });
+        }
+
+        AreaDto? area = null;
+        if (!string.IsNullOrWhiteSpace(request.City) && governorate is not null)
+        {
+            area = await _geo.FindAreaAsync(governorate, request.City, ct);
+            if (area is null)
+            {
+                throw AppException.Validation(new Dictionary<string, string[]> { ["city"] = ["المنطقة غير صحيحة."] });
+            }
+        }
+
         organization.Name = request.Name.Trim();
         organization.Field = NormalizeField(request.Field);
         organization.Description = Clean(request.Description);
-        organization.Governorate = NormalizeGovernorate(request.Governorate);
-        organization.City = NormalizeArea(request.Governorate, request.City);
+        organization.Governorate = governorate?.Key;
+        organization.City = area?.Key;
         organization.Website = Clean(request.Website);
         organization.EmployeeCountRange = NormalizeEmployeeRange(request.EmployeeCountRange);
         organization.ContactInformation = Clean(request.ContactInformation);
@@ -256,19 +275,6 @@ public sealed class OrganizationService : IOrganizationService
 
     private static string? NormalizeEmployeeRange(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Trim();
-
-    private static string? NormalizeGovernorate(string? value)
-    {
-        if (string.IsNullOrWhiteSpace(value)) return null;
-        return MetaCatalog.FindGovernorate(value)?.Key;
-    }
-
-    private static string? NormalizeArea(string? governorate, string? value)
-    {
-        if (string.IsNullOrWhiteSpace(value)) return null;
-        var gov = MetaCatalog.FindGovernorate(governorate);
-        return gov is null ? null : MetaCatalog.FindArea(gov, value)?.Key;
-    }
 
     private static string? Clean(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 }

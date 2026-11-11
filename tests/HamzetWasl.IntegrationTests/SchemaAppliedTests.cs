@@ -7,7 +7,7 @@ namespace HamzetWasl.IntegrationTests;
 
 /// <summary>
 /// Proves that the authoritative SQL script is applied to the real database exactly:
-/// the 60 domain tables, their CHECK constraints, foreign keys, unique constraints
+/// the 62 domain tables, their CHECK constraints, foreign keys, unique constraints
 /// and indexes come from <c>Hamzet_Wasl_Schema_v2.sql</c> and nothing else.
 /// </summary>
 [Collection("Api")]
@@ -33,7 +33,7 @@ public class SchemaAppliedTests(ApiFixture fixture)
         var expected = script.Tables.Keys.OrderBy(name => name, StringComparer.OrdinalIgnoreCase).ToList();
 
         Assert.Equal(expected, domainTables);
-        Assert.Equal(60, domainTables.Count);
+        Assert.Equal(62, domainTables.Count);
     }
 
     [Fact]
