@@ -221,6 +221,10 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIs...
 | `company` | `demo.company@hamzetwasl.local` | `Demo@12345` | `pending_approval` | ينشئ منظمة بحالة `pending` |
 | `disabled_user` | `demo.disabled@hamzetwasl.local` | `Demo@12345` | `active` | إعدادات إتاحة محفوظة بفئتين |
 
+> **كلمة مرور الأدمن** (`Admin@12345`) هي القيمة المحلية المقترحة في ملف الإعدادات المحلي
+> (`appsettings.Development.json` المنسوخ من القالب). المستودع العام لا يحتوي أي credential:
+> كل مطوّر يختار كلمة مروره في `Seed:AdminPassword` قبل أول تشغيل.
+
 ### كيف تُنشأ هذه الحسابات؟
 
 </div>

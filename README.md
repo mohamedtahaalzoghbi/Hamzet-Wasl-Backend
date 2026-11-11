@@ -1,356 +1,240 @@
-# Hamzet Wasl — Backend API (Phase 1)
+<div align="center">
+  <img src="docs/logo.svg" alt="Hamzet Wasl logo" width="120" height="120">
+</div>
 
-<div dir="rtl">
+# همزة وصل — Hamzet Wasl Backend
 
-**همزة وصل** — واجهة برمجية (REST API) لمنصة تربط ذوي الهمم بالمتطوعين والجمعيات والشركات:
-الملف التعريفي، إعدادات الإتاحة، معجزة التحقق للمتطوعين، دورة حياة خاصة بالمنظمات، ولوحة إدارة كاملة.
+<div align="center">
 
-| | |
-|---|---|
-| الإصدار الحالي | `v1` (المرحلة الأولى مكتملة) |
-| Base path | `/api/v1` |
-| العقد الموثّق | `docs/openapi.json` (OpenAPI 3.0.4) + `docs/API_CONTRACT.md` |
-| قاعدة البيانات | SQL Server (62 جدولاً في المخطط المرجعي) |
-| الاختبارات | 131 اختبار وحدة + 41 اختبار تكامل — ناجحة بالكامل |
-| البناء | 0 Warning / 0 Error (`TreatWarningsAsErrors=true`) |
-| آخر commit | `d931077` — UI & ERD alignment (batches 2-4) |
+**منصة تربط ذوي الهمم بالمتطوعين والجمعيات والشركات**
+
+`REST API` · `.NET 10` · `SQL Server` · `Clean Architecture` · `OpenAPI 3.0.4`
+
+[![Tests](https://img.shields.io/badge/tests-172%20passing-12A4A4?style=flat-square)](https://github.com/)
+[![Build](https://img.shields.io/badge/build-0%20warnings-0F4C81?style=flat-square)](https://github.com/)
+[![OpenAPI](https://img.shields.io/badge/OpenAPI-3.0.4-12A4A4?style=flat-square)](docs/openapi.json)
 
 </div>
 
 ---
 
-## 1. المحتويات
-
-- [نظرة عامة](#2-نظرة-عامة)
-- [التقنيات المستخدمة](#3-التقنيات-المستخدمة)
-- [بنية المشروع (Clean Architecture)](#4-بنية-المشروع-clean-architecture)
-- [خطوات التشغيل](#5-خطوات-التشغيل)
-- [تشغيل الاختبارات](#6-تشغيل-الاختبارات)
-- [أدوار المستخدمين](#7-أدوار-المستخدمين)
-- [الحسابات التجريبية](#8-الحسابات-التجريبية)
-- [اصطلاحات الـ API](#9-اصطلاحات-ال-api)
-- [التوثيق](#10-التوثيق)
-- [ملاحظات تشغيلية](#11-ملاحظات-تشغيلية)
-
----
-
-## 2. نظرة عامة
-
 <div dir="rtl">
 
-### ما الذي ينجزه الـ API؟
+## نظرة عامة
 
-| المجال | الوظائف |
-|---|---|
-| **المصادقة** | تسجيل، دخول، Google، تحديث التوكن، خروج، نسيان وإعادة تعيين كلمة المرور، تغيير كلمة المرور، تحقق البريد والهاتف عبر OTP، جلسة المستخدم |
-| **البيانات المرجعية** | أنواع الحسابات، المحافظات والمناطق (من قاعدة البيانات)، مجالات العمل، نطاقات عدد الموظفين، المهارات، الاهتمامات، فئات الإتاحة، وسائل الراحة |
-| **الملف الشخصي** | الملف الشخصي، الصورة الشخصية، الاهتمامات، المهارات، طلب حذف الحساب، مركز الإشعارات (سجل + تعليم المقروء) |
-| **الإتاحة** | حفظ إعدادات الإتاحة، دعم فئة أو أكثر (حتى 3 فئات)، وحساب الـ `effectivePreset` الفعلي الذي يطبقه العميل |
-| **المتطوع** | ملف المتطوع، الموقع الجغرافي، معجزة التحقق (البريد ثم الهاتف ثم 3 مستندات ثم رابط تواصل ثم حجز مقابلة)، أوقات التفرغ، التدريب |
-| **المنظمة** | ملف المنظمة (جمعية أو شركة)، الشعار والغلاف، المستندات الرسمية، التقديم للمراجعة، حالة المراجعة |
-| **الإدارة** | طوابير مراجعة المتطوعين والمنظمات، القرارات، إدارة مواعيد المقابلات، تعليق وتفعيل المستخدمين، طلبات حذف الحساب، سجل التدقيق |
-| **الملفات** | الوصول للملفات الخاصة عبر رابط موقّع ومحدود الصلاحية |
-| **الفورية** | إشعارات لحظية عبر SignalR على `/hubs/notifications` |
-
-### قرارات معمارية جوهرية
-
-- **المخطط هو المصدر الوحيد للحقيقة**: ملف `Hamzet_Wasl_Schema_v2.sql` مُضمَّن داخل الـ Infrastructure
-  ويقوم التطبيق بتطبيقه تلقائياً على أي قاعدة بيانات فارغة. **لا توجد EF Core migrations** — سكربت SQL
-  واحد يمنع وجود مصدرين للحقيقة.
-- **اختبار تطابق المخطط**: اختبار وحدة يقارن نموذج EF مع المخطط، واختبار تكامل يتحقق من الجداول
-  والـ CHECK constraints داخل قاعدة بيانات حقيقية.
-- **عقد API واحد**: غلاف استجابة موحّد، تسمية camelCase، توقيتات ISO-8601 UTC، معرّفات GUID،
-  أكواد أخطاء إنجليزية ثابتة ورسائل عربية.
-- **لا تغيير في العقد دون توثيق**: كل تعديل يمر عبر `docs/CHANGELOG.md` و`docs/DEVIATIONS.md`
-  ويفحص الـ CI أن `docs/openapi.json` مطابق للـ API الفعلي.
+**منصة تمكّن ذوي الهمم من إيجاد الدعم والعمل، وتربطهم بالمتطوعين والجمعيات والشركات التي
+تقدّم فرصاً وخدمات. هذا المستودع يحتوي **واجهة الـ Backend** (المرحلة الأولى
+مكتملة): مصادقة JWT، ملفات شخصية، إعدادات إتاحة، تحقّق المتطوعين، دورة حياة المنظمات،
+لوحة إدارة، إشعارات لحظية عبر SignalR، و62 جدولاً في مخطط مرجعي واحد.
 
 </div>
 
 ---
 
-## 3. التقنيات المستخدمة
+## التقنيات المستخدمة
 
-| الطبقة | التقنية | الإصدار / الملاحظة |
+| الطبقة | التقنية | ملاحظة |
 |---|---|---|
-| Runtime | .NET | `net10.0` |
-| Web | ASP.NET Core Web API | Controllers + Middleware + Filters |
-| ORM | Entity Framework Core (SQL Server) | `10.0.14` — بدون migrations |
-| المصادقة | ASP.NET Core Identity + JWT Bearer | Access 15 دقيقة / Refresh 30 يوم |
-| التحقق | FluentValidation | `12.2.0` |
-| توثيق الـ API | Swashbuckle (OpenAPI 3.0.4) | يُصدَّر آلياً إلى `docs/openapi.json` |
-| الفورية | SignalR | Hub واحد للإشعارات |
-| اللوجز | Serilog | Console + File، بدون بيانات شخصية ولا روابط الطلبات |
-| التخزين المؤقت | `IMemoryCache` + StackExchange.Redis جاهز | الكتالوج الجغرافي 10 دقائق |
-| اختبارات الوحدة | xUnit + FluentAssertions | 131 اختبار |
-| اختبارات التكامل | xUnit + `WebApplicationFactory` + LocalDB | 41 اختبار |
-| CI | GitHub Actions | بناء + اختبارات + فحص تطابق OpenAPI + فحص الأسرار |
+| Runtime | **.NET 10** (`net10.0`) | LTS، مع `Nullable` و`ImplicitUsings` |
+| Web API | **ASP.NET Core** | Controllers + Middleware + Filters |
+| Architecture | **Clean Architecture** | `Api → Application → Domain` و `Infrastructure → Application → Domain` |
+| Database | **SQL Server** | 62 جدولاً في `Hamzet_Wasl_Schema_v2.sql` (بدون EF migrations) |
+| ORM | Entity Framework Core 10 | المخطط SQL هو المصدر الوحيد للحقيقة |
+| Auth | ASP.NET Core Identity + JWT Bearer | Access 15 دقيقة · Refresh 30 يوم مع تدوير |
+| Validation | FluentValidation 12 | رسائل عربية + أكواد أخطاء ثابتة |
+| Docs | Swashbuckle (OpenAPI 3.0.4) | مُصدَّر آلياً إلى `docs/openapi.json` |
+| Realtime | SignalR | إشعارات لحظية على `/hubs/notifications` |
+| Logging | Serilog | Console + File، بدون بيانات شخصية |
+| Tests | **xUnit** + FluentAssertions + `WebApplicationFactory` | **131** اختبار وحدة + **41** اختبار تكامل |
+| CI | GitHub Actions | بناء + اختبارات + فحص تطابق OpenAPI + فحص أسرار |
 
 ---
 
-## 4. بنية المشروع (Clean Architecture)
+## ⚙️ التشغيل (Setup) لمطوّر جديد
 
-```
-HamzetWasl.slnx
-├── src/
-│   ├── HamzetWasl.Domain/          ← الكيانات + قواعد العمل (لا يعتمد على أي طبقة أخرى)
-│   │   ├── Entities/               ← UserAccount, VolunteerProfile, Organization, ...
-│   │   ├── Constants/              ← الأدوار، الحالات، فئات الإتاحة، أنماط الإشعارات
-│   │   └── Rules/                  ← AccessibilityPresets, AccessibilityOverrides, FileRules, ...
-│   ├── HamzetWasl.Application/     ← العقود (DTOs) + الواجهات + الـ Validators
-│   │   ├── Contracts/              ← Auth, Profile, Volunteer, Organization, Admin, Meta
-│   │   ├── Interfaces/             ← IAuthService, IGeoCatalog, IFileStorage, ...
-│   │   ├── Validation/             ← Validators.cs
-│   │   └── Metadata/               ← MetaCatalog (كتالوج احتياطي) + DTOs
-│   ├── HamzetWasl.Infrastructure/  ← التنفيذ: DbContext, الخدمات, Identity, الإعدادات
-│   │   ├── Persistence/            ← HamzetWaslDbContext, DatabaseSeeder, SchemaBootstrapper
-│   │   ├── Services/               ← AuthService, VolunteerService, OrganizationService, ...
-│   │   ├── Identity/               ← TokenService, AppUser
-│   │   └── SchemaComparison/       ← SqlSchemaParser (اختبار تطابق المخطط)
-│   └── HamzetWasl.Api/             ← Controllers + Middleware + OpenAPI + SignalR
-├── tests/
-│   ├── HamzetWasl.UnitTests/       ← قواعد العمل، الـ validators، تطابق المخطط
-│   └── HamzetWasl.IntegrationTests/← تدفقات حقيقية على SQL Server
-├── docs/                           ← التوثيق + openapi.json
-├── tools/                          ← سكربتات مساعدة (seed-demo-accounts.ps1)
-├── Hamzet_Wasl_Schema_v2.sql       ← المخطط المرجعي (62 جدولاً)
-├── Hamzet_Wasl_Migration_v2_1_review_created_at.sql
-└── Hamzet_Wasl_Migration_v2_2_geo_tables.sql
+### المتطلبات
+
+| الأداة | الإصدار |
+|---|---|
+| .NET SDK | `10.0.x` |
+| SQL Server | LocalDB (للتطوير) أو SQL Server 2019+ |
+| sqlcmd / SSMS | اختياري (لتشغيل سكربتات المخطط) |
+
+### 1) استنساخ المشروع
+
+```bash
+git clone https://github.com/<your-account>/Hamzet-Wasl-Backend.git
+cd Hamzet-Wasl-Backend
 ```
 
-<div dir="rtl">
+### 2) تشغيل سكربت قاعدة البيانات
 
-قاعدة الاعتماد: `Api → Application → Domain` و `Infrastructure → Application → Domain`.
-طبقة الـ Domain لا تعرف شيئاً عن EF Core أو ASP.NET، وطبقة الـ Api لا تحوي أي منطق عمل.
-
-</div>
-
----
-
-## 5. خطوات التشغيل
-
-### 5.1 المتطلبات
-
-| الأداة | الإصدار | ملاحظات |
-|---|---|---|
-| .NET SDK | 10.0.x | `dotnet --info` يجب أن يعرض `net10.0` |
-| SQL Server LocalDB | MSSQLLocalDB | يأتي مع Visual Studio أو كحزمة مستقلة |
-| sqlcmd / SSMS | اختياري | مطلوب فقط لسكربتات الـ Migration وكشف الأخطاء |
-| Postman / Insomnia | اختياري | Swagger UI مدمج داخل الـ API |
+المخطط المرجعي هو `Hamzet_Wasl_Schema_v2.sql` (62 جدولاً + قيود CHECK و Foreign keys).
+يمكن تشغيله بسطر واحد:
 
 ```powershell
-sqllocaldb info MSSQLLocalDB
-sqllocaldb start MSSQLLocalDB
+sqlcmd -S "(localdb)\MSSQLLocalDB" -d HamzetWasl -i Hamzet_Wasl_Schema_v2.sql
 ```
 
-### 5.2 التشغيل السريع
+> **بديل مختصر:** لو تركت الـ API يقلع على قاعدة بيانات فارغة، سيطبّق السكربت **تلقائياً**
+> (السكربت مُضمَّن داخل المشروع ولا توجد EF Core migrations). الخطوات 2 و3 مطلوبة فقط
+> إن كانت لديك قاعدة بيانات قديمة.
 
-```powershell
-git clone <repo-url>
-cd <project-folder>
-dotnet restore HamzetWasl.slnx
-dotnet run --project src/HamzetWasl.Api
-```
-
-عند أول تشغيل يقوم التطبيق تلقائياً بـ:
-
-1. إنشاء قاعدة البيانات `HamzetWasl` إن لم تكن موجودة.
-2. تطبيق `Hamzet_Wasl_Schema_v2.sql` كاملاً (62 جدولاً).
-3. إنشاء جداول ASP.NET Core Identity.
-4. بذر الأدوار والبيانات المرجعية والمحافظات والمناطق والتدريب وحساب الأدمن.
-
-| الرابط | الغرض |
-|---|---|
-| `http://localhost:5153/swagger` | Swagger UI (بيئة التطوير فقط) |
-| `http://localhost:5153/swagger/v1/swagger.json` | مستند OpenAPI |
-| `http://localhost:5153/health` | فحص الصحة |
-| `http://localhost:5153/hubs/notifications` | SignalR (يتطلب Bearer token) |
-
-> منفذ `5153` يأتي من `src/HamzetWasl.Api/Properties/launchSettings.json` ويمكن تغييره من هناك.
-
-### 5.3 قاعدة بيانات موجودة مسبقاً
-
-<div dir="rtl">
-
-سقوط السكربت يعمل **على قاعدة بيانات فارغة فقط**. إذا كان لديك قاعدة بيانات من قبل، نفّذ السكربتين
-بالترتيب (كلاهما idempotent ويحتوي على rollback):
-
-</div>
+### 3) تشغيل سكربتات الترقية (Migrations) للقاعدة القديمة
 
 ```powershell
 sqlcmd -S "(localdb)\MSSQLLocalDB" -d HamzetWasl -i Hamzet_Wasl_Migration_v2_1_review_created_at.sql
 sqlcmd -S "(localdb)\MSSQLLocalDB" -d HamzetWasl -i Hamzet_Wasl_Migration_v2_2_geo_tables.sql
 ```
 
-<div dir="rtl">
+كلاهما **idempotent** (يعمل بدون أخطاء إن طُبّق مرتين) ويحتوي على rollback موثّق.
 
-ثم شغّل السكربت التجريبي (اختياري لكنه موصى به قبل أي عرض أو تسليم للواجهة):
+### 4) ضبط الإعدادات (مهم)
 
-</div>
+المستودع **لا يحتوي أي أسرار**. كل قيمة حساسة تأتي من متغيرات البيئة أو من ملف محلي
+لا يُرفع إلى Git:
+
+```powershell
+# انسخ ملف القالب إلى ملف محلي (المجلد مُتجاهَل في .gitignore)
+copy src\HamzetWasl.Api\appsettings.Development.example.json src\HamzetWasl.Api\appsettings.Development.json
+```
+
+ثم عدّل القيم داخل `appsettings.Development.json`:
+
+| المفتاح | الوصف |
+|---|---|
+| `Jwt:SigningKey` | مفتاح توقيع التوكن (32 حرفاً على الأقل) |
+| `Storage:SigningKey` | مفتاح توقيع روابط الملفات (32 حرفاً على الأقل) |
+| `Otp:HashKey` | مفتاح hash لأكواد OTP (16 حرفاً على الأقل) |
+| `Seed:AdminPassword` | كلمة مرور أول حساب أدمن |
+
+> نسخة جاهزة للاستخدام المحلي (غيّرها قبل أي نشر مشترك):
+> `Jwt:SigningKey = DEV-ONLY-local-jwt-key-change-me-0123456789` ·
+> `Storage:SigningKey = DEV-ONLY-local-storage-key-change-me-0123456789` ·
+> `Otp:HashKey = DEV-ONLY-local-otp-key-change-me-0123456789` ·
+> `Seed:AdminPassword = Admin@12345`
+
+بديل للإعدادات: متغيرات البيئة (`Jwt__SigningKey`، `Storage__SigningKey`، `Otp__HashKey`) أو
+`dotnet user-secrets`. للإنتاج استخدم `src/HamzetWasl.Api/appsettings.Production.example.json`
+كقالب + أسرار من مخزن أسرار.
+
+### 5) التشغيل
+
+```bash
+dotnet restore HamzetWasl.slnx
+dotnet run --project src/HamzetWasl.Api
+```
+
+| الرابط | الغرض |
+|---|---|
+| `http://localhost:5153/swagger` | **Swagger UI** (بيئة التطوير فقط) |
+| `http://localhost:5153/swagger/v1/swagger.json` | مستند OpenAPI |
+| `http://localhost:5153/health` | فحص الصحة |
+| `http://localhost:5153/hubs/notifications` | SignalR (يتطلب Bearer token) |
+
+عند أول تشغيل: إنشاء القاعدة ← تطبيق المخطط ← إنشاء جداول Identity ← بذر البيانات المرجعية
+(الأدوار، المهارات، المحافظات، المناطق) وحساب الأدمن.
+
+### 6) (اختياري) حسابات العرض
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\tools\seed-demo-accounts.ps1
 ```
 
-### 5.4 الإعدادات
-
-<div dir="rtl">
-
-لا توجد مفاتيح احتياطية داخل الكود: التطبيق **يرفض الإقلاع** إذا غابت مفاتيح التوقيع. استخدم متغيرات
-البيئة أو ملف `appsettings.{Environment}.json`:
-
-</div>
-
-| المفتاح | مطلوب | الوصف |
-|---|---|---|
-| `ConnectionStrings__DefaultConnection` | نعم | سلسلة اتصال SQL Server |
-| `Jwt__SigningKey` | نعم | 32 حرفاً على الأقل (HS256) |
-| `Storage__SigningKey` | نعم | 32 حرفاً على الأقل (توقيع روابط الملفات) |
-| `Otp__HashKey` | نعم | 16 حرفاً على الأقل (HMAC لأكواد OTP) |
-| `Seed__AdminEmail` / `Seed__AdminPassword` | اختياري | حساب الأدمن الأول |
-| `Cors__AllowedOrigins__0` | اختياري | أصول الـ CORS (افتراضياً `localhost:3000` و `localhost:5173`) |
-| `RateLimiting__*` | اختياري | حدود تحديد المعدل |
-| `SkipDatabaseInitialization` | اختياري | `true` لتخطي التهيئة (تستخدمه الاختبارات) |
+ينشئ حسابات متطوع وجمعية وشركة وذوي همم بكلمة مرور `Demo@12345` وبملفات جاهزة للعرض.
 
 ---
 
-## 6. تشغيل الاختبارات
+## 🧪 تشغيل الاختبارات
 
-```powershell
-# 1) بناء نظيف (التحذيرات تُعامل كأخطاء)
-dotnet build HamzetWasl.slnx -c Release -p:TreatWarningsAsErrors=true
+```bash
+# كل الاختبارات (172 اختباراً)
+dotnet test HamzetWasl.slnx -c Release
 
-# 2) اختبارات الوحدة (سريعة، بدون قاعدة بيانات)
-dotnet test tests/HamzetWasl.UnitTests/HamzetWasl.UnitTests.csproj -c Release --no-build
-
-# 3) اختبارات التكامل (قاعدة بيانات حقيقية)
-dotnet test tests/HamzetWasl.IntegrationTests/HamzetWasl.IntegrationTests.csproj -c Release --no-build
+# أو كل مجموعة على حدة
+dotnet test tests/HamzetWasl.UnitTests/HamzetWasl.UnitTests.csproj -c Release
+dotnet test tests/HamzetWasl.IntegrationTests/HamzetWasl.IntegrationTests.csproj -c Release
 ```
 
-| suite | العدد | ماذا تغطي |
+| المجموعة | العدد | ماذا تغطي |
 |---|---|---|
-| Unit | **131** | قواعد العمل، الـ validators، تطبيع الهاتف، قواعد الملفات، التوكنات، التوقيتات UTC، حساب الـ preset، الكتالوج الجغرافي، **تطابق المخطط** |
-| Integration | **41** | تدفقات حقيقية عبر HTTP: تسجيل ودخول، التوكنات، ملف الإتاحة، تحقق المتطوع، المنظمات والمراجعة، الإشعارات، الصلاحيات، الرفع، حد المعدل، طلبات الحذف، ترتيب المراجعات |
+| Unit | **131** | قواعد العمل، الـ validators، تطبيع الهاتف، قواعد الملفات، التوكنات، توقيتات UTC، حساب الـ preset، الكتالوج الجغرافي، **تطابق المخطط** |
+| Integration | **41** | تدفقات حقيقية عبر HTTP على SQL Server حقيقي (تسجيل، رفع، مراجعة، إشعارات، صلاحيات، حد معدل، طلبات حذف) |
 
-<div dir="rtl">
+اختبارات التكامل تنشئ قاعدة `HamzetWasl_IT_<guid>` مؤقتة وتطبّق المخطط المرجعي كما هو ثم تحذفها.
+على جهاز بدون LocalDB:
 
-اختبارات التكامل تنشئ قاعدة بيانات مؤقتة `HamzetWasl_IT_<guid>`، تطبّق المخطط المرجعي كما هو،
-تشغّل الـ API الحقيقي عبر `WebApplicationFactory`، ثم تحذف القاعدة. على جهاز بدون LocalDB مرّر المتغيرات:
-
-</div>
-
-```powershell
-$env:HW_TEST_SQL_SERVER   = "localhost,1433"
-$env:HW_TEST_SQL_USER     = "sa"
-$env:HW_TEST_SQL_PASSWORD = "Password123!"
+```bash
+export HW_TEST_SQL_SERVER=localhost,1433
+export HW_TEST_SQL_USER=sa
+export HW_TEST_SQL_PASSWORD="<your-password>"
 ```
 
 ---
 
-## 7. أدوار المستخدمين
+## 👥 أدوار المستخدمين
 
-<div dir="rtl">
-
-| الدور | كيف يُنشأ | أبرز ما يصل إليه |
+| الدور | كيف يُنشأ | أبرز المسارات |
 |---|---|---|
-| `disabled_user` | تسجيل عام | `/me/profile`, `/me/interests`, `/me/skills`, **`/me/accessibility`** (قراءة وحفظ وسحب الموافقة), الإشعارات, طلب حذف الحساب |
-| `volunteer` | تسجيل عام | `/me/profile`, **`/me/volunteer-profile`**, **`/me/volunteer-location`**, **`/me/verification`** (الأدلة وروابط التواصل وحجز وتعديل وإلغاء مقابلة), `/interview-slots`, **`/me/availability`**, `/me/training`, الإشعارات, طلب حذف الحساب |
-| `association` | تسجيل عام باسم منظمة | `/me/profile`, **`/me/organization`** (الملف والشعار والغلاف والمستندات والتقديم وحالة المراجعة), الإشعارات, طلب حذف الحساب |
-| `company` | تسجيل عام باسم شركة | نفس صلاحيات `association` (النوع `company` يُخزَّن في `ORGANIZATION.organization_type`) |
-| `admin` | **بذر تلقائي فقط** — غير قابل للتسجيل العام | `/admin/volunteer-reviews`, `/admin/organization-reviews`, قرارات المراجعة, `/admin/interview-slots`, تعليق المستخدمين, `/admin/deletion-requests`, `/admin/audit` |
-
-ملاحظات:
-
-- الأدمن **غير مسجَّل** عبر `/api/v1/auth/register` — الطلب يُرفض برمز 400 على الحقل `role`.
-- حسابات الجمعيات والشركات تبدأ بحالة `pending_approval` وتتحول إلى `active` عند موافقة الأدمن.
-- كل مستخدم مُصادَق عليه يصل إلى مسارات `/me/*` العامة (الملف، الاهتمامات، المهارات، الإشعارات، طلب الحذف).
-
-</div>
+| `disabled_user` | تسجيل عام | `/me/profile`, `/me/accessibility`, الإشعارات، طلب الحذف |
+| `volunteer` | تسجيل عام | `/me/volunteer-profile`, `/me/volunteer-location`, `/me/verification`, `/me/availability`, `/me/training` |
+| `association` | تسجيل باسم منظمة | `/me/organization` (ملف، شعار، غلاف، مستندات، تقديم، مراجعة) |
+| `company` | تسجيل باسم شركة | نفس صلاحيات `association` |
+| `admin` | بذر تلقائي فقط (غير مسجَّل) | `/admin/volunteer-reviews`, `/admin/organization-reviews`, `/admin/interview-slots`, `/admin/deletion-requests`, `/admin/audit` |
 
 ---
 
-## 8. الحسابات التجريبية
-
-<div dir="rtl">
-
-| الدور | البريد | كلمة المرور | الحالة | كيف أُنشئ |
-|---|---|---|---|---|
-| `admin` | `admin@hamzetwasl.local` | `Admin@12345` | `active` | بذر تلقائي من `Seed:*` |
-| `volunteer` | `demo.volunteer@hamzetwasl.local` | `Demo@12345` | `active` | `tools/seed-demo-accounts.ps1` |
-| `association` | `demo.association@hamzetwasl.local` | `Demo@12345` | `pending_approval` | `tools/seed-demo-accounts.ps1` |
-| `company` | `demo.company@hamzetwasl.local` | `Demo@12345` | `pending_approval` | `tools/seed-demo-accounts.ps1` |
-| `disabled_user` | `demo.disabled@hamzetwasl.local` | `Demo@12345` | `active` | `tools/seed-demo-accounts.ps1` |
-
-السكربت يعمل بعد تشغيل الـ API: يسجّل الحسابات عبر الـ API العام، ويعلّم البريد والهاتف كـ *موثّق*
-مباشرة في قاعدة البيانات (ناقل البريد والرسالة في التطوير لا يطبع الكود عمداً)، ويملأ ملفاً بسيطاً
-لكل حساب حتى تكون الواجهة جاهزة للعرض.
-
-</div>
-
----
-
-## 9. اصطلاحات الـ API
-
-| Concern | القاعدة |
-|---|---|
-| المسار | كل المسارات تحت `/api/v1` |
-| الغلاف | كل رد (نجاح أو خطأ) داخل: `{ success, data, error, traceId }` |
-| JSON | أسماء الخصائص camelCase، والـ enums نصوص snake_case |
-| المعرّفات | GUID بصيغة lowercase-hyphenated |
-| التواريخ | ISO-8601 UTC دائماً مع اللاحقة `Z` |
-| الهاتف | E.164 (`+201012345678`)، والإدخال يقبل `01xxxxxxxxx` ويُطبَّع في الخادم |
-| الترقيم | `?page=1&pageSize=20` (الحد الأقصى 100) |
-| الأخطاء | `error.code` إنجليزي ثابت + `error.message` عربي + `error.fields` لأخطاء الحقول |
-| المصادقة | `Authorization: Bearer <accessToken>` |
-| `204` | جسم فارغ بدون غلاف |
-| الملفات | `GET /api/v1/files` يعيد الملف الثنائي وليس JSON |
-
-```json
-{
-  "success": true,
-  "data": { "userId": "…", "role": "volunteer", "accessToken": "…" },
-  "error": null,
-  "traceId": "0HN7…"
-}
-```
-
----
-
-## 10. التوثيق
+## 📚 التوثيق
 
 | الملف | المحتوى |
 |---|---|
-| `docs/API_CONTRACT.md` | العقد الكامل لكل نقطة نهاية (المرجع الأساسي للواجهة) |
-| `docs/openapi.json` | مستند OpenAPI 3.0.4 مُصدَّر من الـ API نفسه (فحص التطابق في CI) |
-| `docs/FRONTEND_HANDOFF.md` | **دليل مطوّر الواجهة**: استخدام OpenAPI، المصادقة، OTP، الرفع، بيانات الدخول |
-| `docs/ERD_TO_API_MAP.md` | خريطة كل جدول ERD إلى نقطة النهاية |
-| `docs/DEVIATIONS.md` | كل اختلاف مقصود عن الـ master prompt مع السبب والأثر |
-| `docs/CHANGELOG.md` | تاريخ العقد وكل التغييرات |
-| `docs/OPEN_QUESTIONS.md` | القرارات الافتراضية المقابلة لأسئلة الـ prompt |
-| `docs/IMPLEMENTATION_ROADMAP.md` | خريطة المراحل والجاهزية |
-| `docs/RUNBOOK.md` | خطوات البناء والتشغيل والتحقق والإطلاق |
-| `docs/DEMO_CHECKLIST.md` | قائمة تحضير وعرض المناقشة |
+| [`docs/API_CONTRACT.md`](docs/API_CONTRACT.md) | العقد الكامل لكل نقطة نهاية |
+| [`docs/openapi.json`](docs/openapi.json) | مستند OpenAPI 3.0.4 مُصدَّر من الـ API |
+| [`docs/FRONTEND_HANDOFF.md`](docs/FRONTEND_HANDOFF.md) | دليل مطوّر الواجهة: المصادقة، OTP، الرفع، البيانات التجريبية |
+| [`docs/ERD_TO_API_MAP.md`](docs/ERD_TO_API_MAP.md) | خريطة كل جدول → نقطة نهاية |
+| [`docs/DEVIATIONS.md`](docs/DEVIATIONS.md) | الاختلافات المقصودة عن الـ master prompt |
+| [`docs/CHANGELOG.md`](docs/CHANGELOG.md) | تاريخ العقد |
+| [`docs/OPEN_QUESTIONS.md`](docs/OPEN_QUESTIONS.md) | القرارات الافتراضية |
+| [`docs/IMPLEMENTATION_ROADMAP.md`](docs/IMPLEMENTATION_ROADMAP.md) | خريطة المراحل |
+| [`docs/RUNBOOK.md`](docs/RUNBOOK.md) | خطوات البناء والتشغيل والتحقق |
+| [`docs/DEMO_CHECKLIST.md`](docs/DEMO_CHECKLIST.md) | تحضير وعرض المناقشة |
 
 ---
 
-## 11. ملاحظات تشغيلية
+## الخصوصية والأسرار
 
-<div dir="rtl">
-
-- **Smart App Control**: على بعض أجهزة Windows يمنع Smart App Control تحميل الـ DLL غير الموقّع
-  (`0x800711C7`). عطّله من *Windows Security → Device performance & security → Smart App Control*،
-  أو شغّل الاختبارات على CI. عملية البناء لا تتأثر.
-- **Swagger** يعمل في بيئة التطوير فقط (`Swagger:Enabled` أو `ASPNETCORE_ENVIRONMENT=Development`).
-- **HTTPS**: `UseHttpsRedirection` مفعّل، وفي الإنتاج يجب تفعيل HSTS على الـ proxy.
-- **CORS**: الأصول المسموحة افتراضياً `http://localhost:3000` و `http://localhost:5173` — أضف منفذ
-  تطبيقك في `Cors:AllowedOrigins`.
-- **لا أسرار في المستودع**: فحص CI يرفض أي مفتاح حقيقي غير معلَّم بـ `DEV-ONLY`.
-
-</div>
+- **لا secrets في المستودع**: `appsettings.json` يُشحن بقيم فارغة، وملفات الإعدادات الحقيقية
+  (`appsettings.Development.json`، `appsettings.Production.json`، `appsettings.*.Local.json`)
+  متجاهَلة في `.gitignore`.
+- **فحص آلي**: مهمة `no-secrets` في الـ CI تفشل إن وُجد أي credential حقيقي في الشجرة.
+- **بلا PII في اللوج**: لا تُكتب الطلبات ولا البريد ولا الهاتف ولا التوكنات في ملفات اللوج.
 
 ---
 
-<div dir="rtl">
+## 🧱 بنية المشروع
 
-### أسلوب الـ commits: **Conventional Commits** (`feat:`, `fix:`, `docs:`, `test:`)، وكل دفعة = مراجعة واحدة قابلة للتشغيل.
+```
+src/
+├── HamzetWasl.Domain/          الكيانات + قواعد العمل (بلا اعتماديات خارجية)
+├── HamzetWasl.Application/     العقود (DTOs) + الواجهات + الـ Validators
+├── HamzetWasl.Infrastructure/  DbContext، الخدمات، Identity، الإعدادات، بذر البيانات
+└── HamzetWasl.Api/             Controllers + Middleware + OpenAPI + SignalR
+tests/
+├── HamzetWasl.UnitTests/
+└── HamzetWasl.IntegrationTests/
+docs/                           التوثيق + openapi.json + logo
+tools/                          سكربتات مساعدة
+```
+
+---
+
+## 📄 ملاحظات
+
+- **Smart App Control**: على بعض أجهزة Windows يمنع تحميل الـ DLL غير الموقّع (`0x800711C7`).
+  عطّله من *Windows Security → Device performance & security → Smart App Control* أو شغّل
+  الاختبارات على CI. البناء لا يتأثر.
+- **HTTPS**: `UseHttpsRedirection` مفعّل، وفي الإنتاج فعّل HSTS على الـ proxy.
+- **CORS**: الأصول المسموحة افتراضياً `http://localhost:3000` و `http://localhost:5173`.
+- **أسلوب الـ commits**: Conventional Commits (`feat:`, `fix:`, `docs:`, `test:`).
 
 </div>

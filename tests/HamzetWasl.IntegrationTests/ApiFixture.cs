@@ -55,7 +55,16 @@ public sealed class ApiFixture : IAsyncLifetime
         // already registered with the LocalDB default.
         Environment.SetEnvironmentVariable("ConnectionStrings__DefaultConnection", _connectionString);
 
-        Factory = new HamzetWaslWebApplicationFactory(_connectionString);
+        Factory = new HamzetWaslWebApplicationFactory(
+            _connectionString,
+            new Dictionary<string, string?>
+            {
+                // The seeded admin comes from the configuration, not from a committed file,
+                // so the suite behaves the same on every machine.
+                ["Seed:AdminEmail"] = "admin@hamzetwasl.local",
+                ["Seed:AdminPhone"] = "01000000000",
+                ["Seed:AdminPassword"] = "Admin@12345"
+            });
         AnonymousClient = Factory.CreateClient(new WebApplicationFactoryClientOptions
         {
             BaseAddress = new Uri("http://localhost")

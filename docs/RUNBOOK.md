@@ -30,8 +30,14 @@ Any push to `main` (and every pull request) runs the pipeline; the branch must s
 
 ## 2. Configuration
 
-`src/HamzetWasl.Api/appsettings.json` holds the base settings, overridden by
-`appsettings.Development.json` (development only, committed with explicit DEV-ONLY keys):
+`src/HamzetWasl.Api/appsettings.json` holds the base settings (every credential in it is empty).
+The local overrides live in `appsettings.Development.json`, which is **never committed**: the
+repository ships `appsettings.Development.example.json` and `appsettings.Production.example.json`
+with placeholders only, and the real files are ignored by `.gitignore`.
+
+```powershell
+copy src\HamzetWasl.Api\appsettings.Development.example.json src\HamzetWasl.Api\appsettings.Development.json
+```
 
 | Key | Purpose |
 |---|---|
@@ -51,6 +57,7 @@ Never commit production keys; override with environment variables, e.g.
 `Jwt__SigningKey`, `Storage__SigningKey`, `Otp__HashKey`,
 `ConnectionStrings__DefaultConnection`. There are no hard-coded fallback keys in the code:
 a missing key stops the application with a clear error instead of silently using a default.
+The CI job `no-secrets` fails the build if a real credential ever reaches a tracked file.
 
 ## 3. Run the API
 
@@ -81,11 +88,18 @@ Then:
 
 ## 4. Default admin (Development)
 
+The first admin is created from the `Seed:*` block of the **local** configuration file
+(`appsettings.Development.json`, copied from the example). The values below are the ones the
+example file suggests for local development:
+
 ```
 email:    admin@hamzetwasl.local
 phone:    01000000000
 password: Admin@12345
 ```
+
+> Change the password before exposing the API anywhere; the repository itself ships no
+> credential, only the placeholder files.
 
 ## 5. Tests
 

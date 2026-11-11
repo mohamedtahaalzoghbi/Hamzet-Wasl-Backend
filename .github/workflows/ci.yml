@@ -112,6 +112,13 @@ jobs:
           export ASPNETCORE_URLS=http://127.0.0.1:5080
           export ConnectionStrings__DefaultConnection="Server=localhost,1433;Database=${CI_DB};User Id=sa;Password=${SA_PASSWORD};TrustServerCertificate=True;MultipleActiveResultSets=True"
 
+          # The repository never commits a real configuration file, so the three signing
+          # keys come from the environment. These are throw-away DEV-ONLY values that only
+          # live inside this job; they are not repository secrets.
+          export Jwt__SigningKey="DEV-ONLY-ci-signing-key-change-in-production-0123456789"
+          export Storage__SigningKey="DEV-ONLY-ci-storage-key-change-in-production-0123456789"
+          export Otp__HashKey="DEV-ONLY-ci-otp-key-change-in-production-0123456789"
+
           # The content root is the working directory, so the app is started from its
           # output folder where appsettings*.json live.
           cd src/HamzetWasl.Api/bin/Release/net10.0
@@ -173,20 +180,23 @@ jobs:
             fail "appsettings.json contains a literal credential"
           fi
 
-          # B. The development configuration may only carry DEV-ONLY placeholders.
-          #     (The local Seed block is the documented development admin account.)
-          DEV=$(jq -r "[paths(scalars) as \$p
-                       | (\$p[0] | tostring) as \$section
-                       | select(\$section != \"Seed\")
-                       | (\$p[-1] | tostring | ascii_downcase) as \$k
-                       | select(${CREDENTIAL_KEYS} | index(\$k))
-                       | getpath(\$p)
-                       | select(type == \"string\" and length > 0)] | .[]" src/HamzetWasl.Api/appsettings.Development.json)
-          for value in ${DEV}; do
-            case "${value}" in
-              *DEV-ONLY*) ;;
-              *) echo "${value}"; fail "appsettings.Development.json contains a credential that is not marked DEV-ONLY" ;;
-            esac
+          # B. The committed example configurations may only carry placeholders.
+          #    (The local Seed block is the documented development admin account.)
+          for EXAMPLE in src/HamzetWasl.Api/appsettings.Development.example.json src/HamzetWasl.Api/appsettings.Production.example.json; do
+            [ -f "${EXAMPLE}" ] || continue
+            DEV=$(jq -r "[paths(scalars) as \$p
+                         | (\$p[0] | tostring) as \$section
+                         | select(\$section != \"Seed\")
+                         | (\$p[-1] | tostring | ascii_downcase) as \$k
+                         | select(${CREDENTIAL_KEYS} | index(\$k))
+                         | getpath(\$p)
+                         | select(type == \"string\" and length > 0)] | .[]" "${EXAMPLE}")
+            for value in ${DEV}; do
+              case "${value}" in
+                *DEV-ONLY*|*YOUR_*|*CHANGE_ME*) ;;
+                *) echo "${value}"; fail "${EXAMPLE} contains a credential that is not a placeholder" ;;
+              esac
+            done
           done
 
           # C. No credential literal anywhere else in the tracked sources.
@@ -197,5 +207,12 @@ jobs:
             echo "${MATCHES}"
             fail "possible secret committed"
           fi
+
+          # D. The real local configuration files must never be tracked.
+          for LOCAL in src/HamzetWasl.Api/appsettings.Development.json src/HamzetWasl.Api/appsettings.Production.json; do
+            if git ls-files --error-unmatch "${LOCAL}" > /dev/null 2>&1; then
+              fail "${LOCAL} is tracked; it holds local credentials and must stay ignored"
+            fi
+          done
 
           echo "no secrets found"

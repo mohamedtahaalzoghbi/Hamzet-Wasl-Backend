@@ -132,6 +132,25 @@ No schema change: `ACCESSIBILITY_PROFILE` still has a single `need_type_id` colu
   values in `UpsertAccessibilityRequest`, `AccessibilityResponse` and `AccessibilityPresetDto`
   (the schema filter previously published the preset list as a string).
 
+### Public repository preparation
+
+No API change: the contract, the schema and the behaviour are identical.
+
+- `src/HamzetWasl.Api/appsettings.Development.json` is **no longer tracked**. The repository
+  ships `appsettings.Development.example.json` and `appsettings.Production.example.json` with
+  `DEV-ONLY-YOUR_..._HERE` placeholders, and the real files are ignored by `.gitignore`.
+  `appsettings.json` keeps every credential empty (as before).
+- The integration test host no longer depends on a local configuration file: the signing keys
+  and the seeded admin are injected by the fixture (`HamzetWaslWebApplicationFactory`,
+  `ApiFixture`), so a fresh clone runs the suite on any machine.
+- The CI pipeline provides the signing keys through environment variables for the OpenAPI
+  export, and its `no-secrets` job now checks the committed example files, scans the tracked
+  sources and fails if a real configuration file is ever tracked again.
+- The whole Git history was audited: no connection string with a password, no private key and
+  no provider token; the only literals are the `DEV-ONLY` placeholders and the test fixtures.
+- `README.md` was rewritten for the public audience (logo, setup steps, test commands,
+  documentation index) and `docs/RUNBOOK.md` documents the copy-the-example step.
+
 ### Earlier changes inside v1
 
 - `POST /me/verification/evidence` (was documented as `PUT`): the evidence type is part of the

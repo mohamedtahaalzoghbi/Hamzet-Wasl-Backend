@@ -18,6 +18,8 @@
 - [ ] السكربتان `Hamzet_Wasl_Migration_v2_1_review_created_at.sql` و`Hamzet_Wasl_Migration_v2_2_geo_tables.sql`
       مطبَّقان على أي قاعدة قديمة.
 - [ ] حسابات العرض موجودة: تشغيل `tools\seed-demo-accounts.ps1` بعد تشغيل الـ API.
+- [ ] الملف المحلي `src/HamzetWasl.Api/appsettings.Development.json` موجود (منسوخ من القالب)
+      ومضبوط بمفاتيح التوقيع وكلمة مرور الأدمن التي تريد عرضها.
 - [ ] تم تسجيل الدخول بالحسابات التجريبية مرة واحدة للتأكد من عملها.
 
 ### 1.2 البناء والاختبارات

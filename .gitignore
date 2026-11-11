@@ -20,10 +20,18 @@ wwwroot/media/
 *.bak
 
 # --- Secrets & configuration with credentials (never commit) ---
-# Dev placeholders live in appsettings.Development.json (marked DEV-ONLY).
-# Real secrets come from environment variables or user secrets only.
+# The repository ships appsettings.Development.example.json and
+# appsettings.Production.example.json (placeholders only). Every real
+# configuration file stays local and is ignored here:
+#   copy src/HamzetWasl.Api/appsettings.Development.example.json
+#        src/HamzetWasl.Api/appsettings.Development.json
+# Real secrets come from environment variables, user secrets or a secret store.
+appsettings.Development.json
 appsettings.Production.json
 appsettings.*.Local.json
+appsettings.Local.json
+*.env
+.env
 secrets.json
 *.pfx
 *.pem
