@@ -202,6 +202,7 @@ export HW_TEST_SQL_PASSWORD="<your-password>"
 | [`docs/IMPLEMENTATION_ROADMAP.md`](docs/IMPLEMENTATION_ROADMAP.md) | خريطة المراحل |
 | [`docs/RUNBOOK.md`](docs/RUNBOOK.md) | خطوات البناء والتشغيل والتحقق |
 | [`docs/DEMO_CHECKLIST.md`](docs/DEMO_CHECKLIST.md) | تحضير وعرض المناقشة |
+| [`design/`](design/) | مخططات الـ ERD وملفات الـ UI ومقترح المشروع (PDF / DOCX) |
 
 ---
 
@@ -218,16 +219,22 @@ export HW_TEST_SQL_PASSWORD="<your-password>"
 ## 🧱 بنية المشروع
 
 ```
+HamzetWasl.slnx                  الحل (Solution)
+Hamzet_Wasl_Schema_v2.sql        المخطط المرجعي (62 جدولاً) — مصدر الحقيقة
+Hamzet_Wasl_Migration_*.sql      سكربتات ترقية قواعد البيانات الموجودة
+MASTER_PROMPT.md                 متطلبات المشروع الأصلية
+
 src/
 ├── HamzetWasl.Domain/          الكيانات + قواعد العمل (بلا اعتماديات خارجية)
 ├── HamzetWasl.Application/     العقود (DTOs) + الواجهات + الـ Validators
 ├── HamzetWasl.Infrastructure/  DbContext، الخدمات، Identity، الإعدادات، بذر البيانات
 └── HamzetWasl.Api/             Controllers + Middleware + OpenAPI + SignalR
 tests/
-├── HamzetWasl.UnitTests/
-└── HamzetWasl.IntegrationTests/
+├── HamzetWasl.UnitTests/       قواعد العمل، الـ validators، تطابق المخطط
+└── HamzetWasl.IntegrationTests/ تدفقات حقيقية على SQL Server
 docs/                           التوثيق + openapi.json + logo
-tools/                          سكربتات مساعدة
+design/                         مخططات الـ ERD + ملفات الـ UI + مقترح المشروع
+tools/                          سكربتات التشغيل والاختصارات وحسابات العرض
 ```
 
 ---

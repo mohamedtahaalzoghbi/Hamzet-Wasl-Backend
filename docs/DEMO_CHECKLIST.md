@@ -37,7 +37,7 @@
 - [ ] Swagger UI يعمل: `http://localhost:5153/swagger`.
 - [ ] Postman: Collection جاهزة + Environment فيه `baseUrl = http://localhost:5153/api/v1`
       ومتغير `token` يُحدَّث بعد تسجيل الدخول.
-- [ ] ملفات PDF جاهزة على جهاز العرض: `Hamzet_Wasl_ERD_Chen_All.pdf` و`graduation.pdf`.
+- [ ] ملفات PDF جاهزة على جهاز العرض: `design/Hamzet_Wasl_ERD_Chen_All.pdf` و`design/graduation.pdf`.
 - [ ] محرر كود (VS Code / Rider) مفتوح على المشروع بخط عربي واضح وحجم مناسب.
 - [ ] مصدر احتياطي في حال انقطاع الشبكة: لقطات شاشة + تسجيل فيديو للعرض.
 - [ ] شحن الهاتف + نسخة من المشروع على فلاشة + نسخة PDF من التوثيق.
@@ -136,7 +136,7 @@
 | # | الملف أو الشاشة | الرسالة التي يوصلها |
 |---|---|---|
 | 1 | `README.md` | نظرة عامة + تشغيل + أدوار + فهرس التوثيق |
-| 2 | `Hamzet_Wasl_ERD_Chen_All.pdf` | المخطط الكامل (62 جدولاً) |
+| 2 | `design/Hamzet_Wasl_ERD_Chen_All.pdf` | المخطط الكامل (62 جدولاً) |
 | 3 | `Hamzet_Wasl_Schema_v2.sql` | المخطط هو المرجع، والتطبيق يطبّقه تلقائياً |
 | 4 | `docs/ERD_TO_API_MAP.md` | لا يوجد جدول بلا نقطة نهاية |
 | 5 | `docs/openapi.json` + Swagger UI | العقد الآلي الكامل |

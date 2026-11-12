@@ -37,7 +37,7 @@
 param(
     [switch]$Stop,
     [switch]$NoBrowser,
-    [switch]$SkipBuild,
+    [switch]$Build,
     [switch]$Release,
     [int]$Port = 5153
 )
@@ -173,15 +173,30 @@ elseif ($connection -and -not $sqlArguments) {
     Write-Info 'The database uses SQL authentication: apply the migrations manually if the API complains.'
 }
 
-# ── 4) Build ─────────────────────────────────────────────────────────────────
-if (-not $SkipBuild) {
-    Write-Info "Building ($configuration) ..."
+# ── 4) Build (only on request, or when the executable does not exist yet) ────
+# The build is opt-in on purpose: a fresh build produces new unsigned assemblies and
+# Windows Smart App Control refuses to load them (0x800711C7). The existing build is
+# used as it is, so the API starts immediately.
+$needsBuild = $Build -or -not (Test-Path $exe)
+if ($needsBuild) {
+    if (-not $Build) {
+        Write-Info 'No build found - building it now (this may take a moment).'
+    }
+    else {
+        Write-Info "Building ($configuration) ..."
+    }
     & dotnet build (Join-Path $apiProject 'HamzetWasl.Api.csproj') -c $configuration -v quiet --nologo
     if ($LASTEXITCODE -ne 0) {
         Write-Err 'The build failed - see the output above.'
+        Write-Host ''
+        Write-Host '  Press Enter to close this window.' -ForegroundColor DarkGray
+        [void](Read-Host)
         exit 1
     }
     Write-Ok 'Build finished (0 warnings).'
+}
+else {
+    Write-Info "Using the existing build ($configuration)."
 }
 
 if (-not (Test-Path $exe)) {

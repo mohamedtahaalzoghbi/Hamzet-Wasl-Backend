@@ -7,9 +7,12 @@ You are a senior .NET backend engineer. Build the complete backend for **Hamzet 
 | File | Role |
 |---|---|
 | `Hamzet_Wasl_Schema_v2.sql` | **Source of truth for the database.** 60 tables, constraints, indexes. Do not change table/column names, types, nullability, CHECK values, or relationships. |
-| `Hamzet_Wasl_ERD_Chen_All.pdf` / `Hamzet_Wasl_ERD_Light.pdf` | Same model as diagrams (5 pages: overview + 4 modules). |
-| `Hamzet_Wasl_Project_Proposal_AR_Plain.docx` | Product scope, features, roles, user stories, tools. |
-| `graduation.pdf` (Figma export, 54 pages) | The only UI designed so far: onboarding, account type, sign-up, OTP, verification, profile completion, company/volunteer registration, interview booking. |
+| `design/Hamzet_Wasl_ERD_Chen_All.pdf` / `design/Hamzet_Wasl_ERD_Light.pdf` | Same model as diagrams (5 pages: overview + 4 modules). |
+| `design/Hamzet_Wasl_Project_Proposal_AR_Plain.docx` | Product scope, features, roles, user stories, tools. |
+| `design/graduation.pdf` (Figma export, 54 pages) | The only UI designed so far: onboarding, account type, sign-up, OTP, verification, profile completion, company/volunteer registration, interview booking. |
+
+> The attached files live in the `design/` folder (the SQL script stays in the repository root
+> because the application embeds and applies it).
 
 If these files disagree, the **SQL schema wins for data**, the **Figma export wins for the screens it contains**, and the proposal wins for everything else. **Never silently guess.** If something is missing or contradictory, list it under "Open questions" in `docs/OPEN_QUESTIONS.md`, pick the most conservative option, and mark it `// ASSUMPTION:` in code.
 
