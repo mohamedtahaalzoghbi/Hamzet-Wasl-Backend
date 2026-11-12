@@ -1,7 +1,12 @@
 /* Hamzet Wasl - v2.2: dynamic governorate / area catalogue (GOVERNORATE + AREA).
    Run once on an EXISTING database created with Hamzet_Wasl_Schema_v2.sql.
    The fresh-install script already contains both tables. Take a backup first.
-   The script is idempotent: it creates missing tables and seeds them only when empty. */
+   The script is idempotent: it creates missing tables and seeds them only when empty.
+
+   The SET options are mandatory: some tables carry filtered indexes, and sqlcmd runs
+   with QUOTED_IDENTIFIER OFF by default, which makes the writes fail with error 1934. */
+SET QUOTED_IDENTIFIER ON;
+SET ANSI_NULLS ON;
 SET XACT_ABORT ON;
 BEGIN TRAN;
 GO

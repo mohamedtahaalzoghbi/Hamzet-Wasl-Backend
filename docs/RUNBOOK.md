@@ -75,6 +75,30 @@ First start performs (unless `SkipDatabaseInitialization=true`):
 The schema file is embedded in `HamzetWasl.Infrastructure`, so no manual `sqlcmd` step is needed.
 EF Core migrations are **not** used: the SQL script is the single source of truth.
 
+### One-click launcher (Windows)
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\tools\start-api.ps1        # build + start + open Swagger
+powershell -ExecutionPolicy Bypass -File .\tools\start-api.ps1 -Stop  # stop it
+```
+
+`tools\start-api.ps1` builds the project, applies the two migration scripts when the
+local database misses their objects (they are idempotent), starts the API in the
+background on `http://localhost:5153` and opens the Swagger UI.
+`tools\create-shortcuts.ps1` writes the **Hamzet Wasl API** shortcuts to the desktop
+and to the project folder.
+
+### Migrating an existing database
+
+```powershell
+sqlcmd -S "(localdb)\MSSQLLocalDB" -d HamzetWasl -i Hamzet_Wasl_Migration_v2_1_review_created_at.sql
+sqlcmd -S "(localdb)\MSSQLLocalDB" -d HamzetWasl -i Hamzet_Wasl_Migration_v2_2_geo_tables.sql
+```
+
+Both scripts are idempotent and set `QUOTED_IDENTIFIER ON` themselves: `sqlcmd` runs with
+`QUOTED_IDENTIFIER OFF` by default, and `VERIFICATION_REVIEW` carries a filtered index, so
+any write on that table fails with error 1934 otherwise.
+
 Then:
 
 - Swagger UI: `http://localhost:5153/swagger`

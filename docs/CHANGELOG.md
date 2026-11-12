@@ -151,6 +151,22 @@ No API change: the contract, the schema and the behaviour are identical.
 - `README.md` was rewritten for the public audience (logo, setup steps, test commands,
   documentation index) and `docs/RUNBOOK.md` documents the copy-the-example step.
 
+### Migration script fixes
+
+The two migration scripts failed on a database that really needed them, so they are fixed:
+
+- `Hamzet_Wasl_Migration_v2_1_review_created_at.sql` referenced the column it was creating
+  (`created_at`) in the same batch as the `ALTER TABLE`. T-SQL compiles a whole batch before
+  running it, so the script died with *"Invalid column name 'created_at'"*. The statements are
+  now split into separate batches (add → backfill → NOT NULL → default constraint), and each
+  step is guarded so the script stays idempotent.
+- Both scripts now start with `SET QUOTED_IDENTIFIER ON; SET ANSI_NULLS ON;`. `sqlcmd` runs with
+  `QUOTED_IDENTIFIER OFF`, and `VERIFICATION_REVIEW` carries a filtered index, so every write on
+  that table failed with error 1934 (the transaction was rolled back).
+- `tools/start-api.ps1` probes the database before starting the API and applies the two scripts
+  automatically when their objects are missing, so a stale database no longer blocks the
+  one-click start.
+
 ### Earlier changes inside v1
 
 - `POST /me/verification/evidence` (was documented as `PUT`): the evidence type is part of the

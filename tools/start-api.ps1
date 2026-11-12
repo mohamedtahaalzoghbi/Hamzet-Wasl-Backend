@@ -119,7 +119,61 @@ if ($running) {
     return
 }
 
-# ── 3) Build ─────────────────────────────────────────────────────────────────
+# ── 3) The database schema ───────────────────────────────────────────────────
+# An existing database may still miss the columns/tables of the last two migrations.
+# The scripts are idempotent, so they are applied automatically when something is missing.
+function Get-ConnectionSettings {
+    $settingsPath = Join-Path $apiProject 'appsettings.json'
+    if (-not (Test-Path $settingsPath)) { return $null }
+    try {
+        $raw = [System.IO.File]::ReadAllText($settingsPath, [System.Text.Encoding]::UTF8)
+        $json = $raw | ConvertFrom-Json
+        return $json.ConnectionStrings.DefaultConnection
+    }
+    catch {
+        return $null
+    }
+}
+
+function Get-SqlCmdArguments {
+    param([string]$ConnectionString)
+
+    $server = if ($ConnectionString -match '(?i)(?:Server|Data Source)\s*=\s*([^;]+)') { $Matches[1].Trim() } else { $null }
+    $database = if ($ConnectionString -match '(?i)(?:Database|Initial Catalog)\s*=\s*([^;]+)') { $Matches[1].Trim() } else { $null }
+    if (-not $server -or -not $database) { return $null }
+
+    $trusted = $ConnectionString -match '(?i)(Integrated Security|Trusted_Connection)\s*=\s*(True|Yes|1)'
+    if (-not $trusted) { return $null }   # a password is never passed on the command line
+
+    return @('-S', $server, '-d', $database)
+}
+
+$connection = Get-ConnectionSettings
+$sqlArguments = Get-SqlCmdArguments -ConnectionString $connection
+if ($sqlArguments -and (Get-Command sqlcmd -ErrorAction SilentlyContinue)) {
+    $probe = & sqlcmd @sqlArguments -h -1 -W -b -Q "SELECT CASE WHEN OBJECT_ID('dbo.GOVERNORATE','U') IS NULL OR OBJECT_ID('dbo.AREA','U') IS NULL OR COL_LENGTH('dbo.VERIFICATION_REVIEW','created_at') IS NULL THEN 'MISSING' ELSE 'OK' END" 2>$null
+    if ($probe -match 'MISSING') {
+        Write-Warn 'The database is missing the objects of the last two migrations - applying them now.'
+        foreach ($migration in @('Hamzet_Wasl_Migration_v2_1_review_created_at.sql', 'Hamzet_Wasl_Migration_v2_2_geo_tables.sql')) {
+            $script = Join-Path $root $migration
+            if (-not (Test-Path $script)) { continue }
+            & sqlcmd @sqlArguments -b -i $script | Out-Null
+            if ($LASTEXITCODE -ne 0) {
+                Write-Err "The migration $migration failed (exit $LASTEXITCODE)."
+                Write-Host ''
+                Write-Host '  Press Enter to close this window.' -ForegroundColor DarkGray
+                [void](Read-Host)
+                exit 1
+            }
+            Write-Ok "Applied $migration"
+        }
+    }
+}
+elseif ($connection -and -not $sqlArguments) {
+    Write-Info 'The database uses SQL authentication: apply the migrations manually if the API complains.'
+}
+
+# ── 4) Build ─────────────────────────────────────────────────────────────────
 if (-not $SkipBuild) {
     Write-Info "Building ($configuration) ..."
     & dotnet build (Join-Path $apiProject 'HamzetWasl.Api.csproj') -c $configuration -v quiet --nologo
