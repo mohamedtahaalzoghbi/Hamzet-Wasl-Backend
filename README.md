@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="docs/logo.svg" alt="Hamzet Wasl logo" width="120" height="120">
+  <img src="docs/logo.png" alt="همزة وصل - Hamzet Wasl" width="260">
 </div>
 
 # همزة وصل — Hamzet Wasl Backend
@@ -203,7 +203,8 @@ export HW_TEST_SQL_PASSWORD="<your-password>"
 | [`docs/RUNBOOK.md`](docs/RUNBOOK.md) | خطوات البناء والتشغيل والتحقق |
 | [`docs/DEMO_CHECKLIST.md`](docs/DEMO_CHECKLIST.md) | تحضير وعرض المناقشة |
 | [`design/`](design/) | مخططات الـ ERD وملفات الـ UI ومقترح المشروع (PDF / DOCX) |
-| [`docs/logo.svg`](docs/logo.svg) | شعار المشروع (نسخة متجهية — يمكن استبدالها بـ `docs/logo.png` إن وُجد ملف أصلي) |
+| [`docs/logo.png`](docs/logo.png) | شعار المشروع الأصلي (العلامة + كلمة "همزة وصل") |
+| [`docs/logo.svg`](docs/logo.svg) | نسخة متجهية من العلامة فقط (للاستخدامات التي تحتاج تكبيراً بلا تشويش) |
 
 ---
 
