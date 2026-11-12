@@ -52,6 +52,9 @@ secrets.json
 *.sln.docstates
 dotnet-user-secrets/
 
+# --- Machine specific desktop shortcuts (regenerate with tools\create-shortcuts.ps1) ---
+*.lnk
+
 # --- Test & coverage results ---
 TestResults/
 [Ll]og/
