@@ -203,6 +203,7 @@ export HW_TEST_SQL_PASSWORD="<your-password>"
 | [`docs/RUNBOOK.md`](docs/RUNBOOK.md) | خطوات البناء والتشغيل والتحقق |
 | [`docs/DEMO_CHECKLIST.md`](docs/DEMO_CHECKLIST.md) | تحضير وعرض المناقشة |
 | [`design/`](design/) | مخططات الـ ERD وملفات الـ UI ومقترح المشروع (PDF / DOCX) |
+| [`docs/logo.svg`](docs/logo.svg) | شعار المشروع (نسخة متجهية — يمكن استبدالها بـ `docs/logo.png` إن وُجد ملف أصلي) |
 
 ---
 

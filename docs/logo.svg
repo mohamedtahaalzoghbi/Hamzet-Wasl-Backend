@@ -1,19 +1,50 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" width="240" height="240" role="img" aria-label="Hamzet Wasl logo">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" width="400" height="400" role="img" aria-label="Hamzet Wasl - همزة وصل">
+  <title>همزة وصل — Hamzet Wasl</title>
+  <desc>Two stylized people, teal and orange, forming a heart around a white heart.</desc>
+
   <defs>
-    <linearGradient id="hwGradient" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#0F4C81"/>
-      <stop offset="100%" stop-color="#12A4A4"/>
-    </linearGradient>
+    <clipPath id="rightHalf">
+      <rect x="200" y="0" width="200" height="400"/>
+    </clipPath>
+
+    <!-- The outer heart: the two bodies joined. -->
+    <path id="heart" d="M200 352
+                       C 200 352, 38 238, 38 152
+                       C 38 92, 82 52, 132 52
+                       C 166 52, 190 72, 200 98
+                       C 210 72, 234 52, 268 52
+                       C 318 52, 362 92, 362 152
+                       C 362 238, 200 352, 200 352 Z"/>
+
+    <!-- The white heart in the middle: the space between the two people. -->
+    <path id="innerHeart" d="M200 300
+                            C 200 300, 102 232, 102 182
+                            C 102 146, 128 120, 158 120
+                            C 178 120, 194 133, 200 150
+                            C 206 133, 222 120, 242 120
+                            C 272 120, 298 146, 298 182
+                            C 298 232, 200 300, 200 300 Z"/>
   </defs>
 
-  <rect x="8" y="8" width="224" height="224" rx="48" fill="url(#hwGradient)"/>
+  <!-- Left person (teal): the whole heart, then the white heart cut out of it. -->
+  <g fill="#1E6F78">
+    <use href="#heart"/>
+    <use href="#innerHeart" fill="#FFFFFF"/>
+  </g>
 
-  <!-- the connecting arc: two sides of the community linked -->
-  <path d="M64 156 C 92 96, 148 96, 176 156" fill="none" stroke="#FFFFFF" stroke-width="10" stroke-linecap="round"/>
-  <circle cx="64" cy="158" r="15" fill="#FFFFFF"/>
-  <circle cx="176" cy="158" r="15" fill="#FFFFFF"/>
+  <!-- Right person (orange): the right half of the same shapes. -->
+  <g clip-path="url(#rightHalf)">
+    <use href="#heart" fill="#D2532B"/>
+    <use href="#innerHeart" fill="#FFFFFF"/>
+  </g>
 
-  <!-- the "HW" monogram -->
-  <text x="120" y="96" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="62" font-weight="700"
-        fill="#FFFFFF" text-anchor="middle" letter-spacing="2">HW</text>
+  <!-- The heads. -->
+  <circle cx="118" cy="50" r="44" fill="#1E6F78"/>
+  <circle cx="282" cy="50" r="44" fill="#D2532B"/>
+
+  <!-- The two heads overlap the heart: the arms of the embrace. -->
+  <g>
+    <path d="M118 24 C 142 24, 160 40, 163 62 C 150 52, 134 48, 118 48 Z" fill="#1E6F78"/>
+    <path d="M282 24 C 258 24, 240 40, 237 62 C 250 52, 266 48, 282 48 Z" fill="#D2532B"/>
+  </g>
 </svg>
