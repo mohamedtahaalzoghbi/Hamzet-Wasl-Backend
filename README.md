@@ -125,6 +125,10 @@ dotnet restore HamzetWasl.slnx
 dotnet run --project src/HamzetWasl.Api
 ```
 
+**One-click alternative (Windows):** `tools\start-api.ps1` builds the project, starts the API in the
+background and opens `http://localhost:5153/swagger` automatically. Run `tools\create-shortcuts.ps1`
+once to add the **Hamzet Wasl API** shortcut to the desktop.
+
 | الرابط | الغرض |
 |---|---|
 | `http://localhost:5153/swagger` | **Swagger UI** (بيئة التطوير فقط) |
