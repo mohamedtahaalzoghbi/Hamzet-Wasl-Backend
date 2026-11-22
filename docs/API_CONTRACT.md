@@ -365,6 +365,9 @@ Rules:
 
 Reviewer evidence/document URLs are short-lived signed URLs (**10-minute** expiry).
 All decisions are written to `ADMIN_AUDIT`.
+Interview booking, change, cancel and both decision endpoints use conditional atomic
+updates, so concurrent duplicates answer 409/422 instead of corrupting state, and
+`UX_VERIFICATION_REVIEW_volunteer_open` guarantees one open round per volunteer.
 
 ## 9. Files
 
