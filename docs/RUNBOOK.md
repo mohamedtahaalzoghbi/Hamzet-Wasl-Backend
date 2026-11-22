@@ -93,9 +93,10 @@ and to the project folder.
 ```powershell
 sqlcmd -S "(localdb)\MSSQLLocalDB" -d HamzetWasl -i Hamzet_Wasl_Migration_v2_1_review_created_at.sql
 sqlcmd -S "(localdb)\MSSQLLocalDB" -d HamzetWasl -i Hamzet_Wasl_Migration_v2_2_geo_tables.sql
+sqlcmd -S "(localdb)\MSSQLLocalDB" -d HamzetWasl -i Hamzet_Wasl_Migration_v2_3_open_review_index.sql
 ```
 
-Both scripts are idempotent and set `QUOTED_IDENTIFIER ON` themselves: `sqlcmd` runs with
+All three scripts are idempotent and set `QUOTED_IDENTIFIER ON` themselves: `sqlcmd` runs with
 `QUOTED_IDENTIFIER OFF` by default, and `VERIFICATION_REVIEW` carries a filtered index, so
 any write on that table fails with error 1934 otherwise.
 
