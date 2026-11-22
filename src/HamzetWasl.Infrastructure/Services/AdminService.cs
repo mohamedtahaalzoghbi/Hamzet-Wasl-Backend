@@ -107,21 +107,37 @@ public sealed class AdminService : IAdminService
 
     public async Task DecideVolunteerReviewAsync(Guid reviewId, Guid reviewerId, DecisionRequest request, CancellationToken ct = default)
     {
-        var review = await _db.VerificationReviews
-            .Include(r => r.Volunteer)
-            .FirstOrDefaultAsync(r => r.ReviewId == reviewId, ct)
-            ?? throw AppException.NotFound("طلب التحقق غير موجود.");
+        var now = _clock.UtcNow;
+        var newStatus = request.Approve ? VerificationReviewStatuses.Approved : VerificationReviewStatuses.Rejected;
 
-        if (review.Status is not (VerificationReviewStatuses.Pending or VerificationReviewStatuses.InterviewScheduled))
+        // Atomic decision: the conditional update lets exactly one of two concurrent
+        // decisions win. Eligibility is unchanged (pending or interview_scheduled);
+        // requiring the interview to have happened first is an open design question (Q24).
+        var decided = await _db.VerificationReviews
+            .Where(r => r.ReviewId == reviewId
+                && (r.Status == VerificationReviewStatuses.Pending
+                    || r.Status == VerificationReviewStatuses.InterviewScheduled))
+            .ExecuteUpdateAsync(s => s
+                .SetProperty(r => r.ReviewerId, reviewerId)
+                .SetProperty(r => r.DecidedAt, now)
+                .SetProperty(r => r.Status, newStatus), ct);
+
+        if (decided == 0)
         {
+            var exists = await _db.VerificationReviews.AsNoTracking().AnyAsync(r => r.ReviewId == reviewId, ct);
+            if (!exists)
+            {
+                throw AppException.NotFound("طلب التحقق غير موجود.");
+            }
+
             throw new AppException(422, ErrorCodes.InvalidState, "تم اتخاذ قرار بشأن هذا الطلب بالفعل.");
         }
 
-        var now = _clock.UtcNow;
-        review.ReviewerId = reviewerId;
-        review.DecidedAt = now;
-        review.Status = request.Approve ? VerificationReviewStatuses.Approved : VerificationReviewStatuses.Rejected;
-        review.Volunteer.VerificationStatus = request.Approve ? VerificationStatuses.Approved : VerificationStatuses.Rejected;
+        var review = await _db.VerificationReviews.AsNoTracking()
+            .FirstAsync(r => r.ReviewId == reviewId, ct);
+
+        var volunteer = await _db.VolunteerProfiles.FirstAsync(v => v.UserId == review.VolunteerId, ct);
+        volunteer.VerificationStatus = request.Approve ? VerificationStatuses.Approved : VerificationStatuses.Rejected;
 
         var evidence = await _db.VerificationEvidences.Where(e => e.ReviewId == reviewId).ToListAsync(ct);
         foreach (var item in evidence)
@@ -194,22 +210,37 @@ public sealed class AdminService : IAdminService
 
     public async Task DecideOrganizationReviewAsync(Guid reviewId, Guid reviewerId, DecisionRequest request, CancellationToken ct = default)
     {
-        var review = await _db.OrganizationReviews
-            .Include(r => r.Organization)
-            .FirstOrDefaultAsync(r => r.ReviewId == reviewId, ct)
-            ?? throw AppException.NotFound("طلب المؤسسة غير موجود.");
+        var now = _clock.UtcNow;
+        var notes = string.IsNullOrWhiteSpace(request.Notes) ? null : request.Notes.Trim();
+        var newStatus = request.Approve ? OrganizationReviewStatuses.Approved : OrganizationReviewStatuses.Rejected;
 
-        if (review.Status != OrganizationReviewStatuses.Pending)
+        // Atomic decision: the conditional update lets exactly one of two concurrent
+        // decisions win; the loser gets a clear already-decided error.
+        var decided = await _db.OrganizationReviews
+            .Where(r => r.ReviewId == reviewId && r.Status == OrganizationReviewStatuses.Pending)
+            .ExecuteUpdateAsync(s => s
+                .SetProperty(r => r.ReviewerId, reviewerId)
+                .SetProperty(r => r.DecidedAt, now)
+                .SetProperty(r => r.DecisionNotes, notes)
+                .SetProperty(r => r.Status, newStatus), ct);
+
+        if (decided == 0)
         {
+            var exists = await _db.OrganizationReviews.AsNoTracking().AnyAsync(r => r.ReviewId == reviewId, ct);
+            if (!exists)
+            {
+                throw AppException.NotFound("طلب المؤسسة غير موجود.");
+            }
+
             throw new AppException(422, ErrorCodes.InvalidState, "تم اتخاذ قرار بشأن هذا الطلب بالفعل.");
         }
 
-        var now = _clock.UtcNow;
-        review.ReviewerId = reviewerId;
-        review.DecidedAt = now;
-        review.DecisionNotes = string.IsNullOrWhiteSpace(request.Notes) ? null : request.Notes.Trim();
-        review.Status = request.Approve ? OrganizationReviewStatuses.Approved : OrganizationReviewStatuses.Rejected;
-        review.Organization.ApprovalStatus = request.Approve
+        var review = await _db.OrganizationReviews.AsNoTracking()
+            .Include(r => r.Organization)
+            .FirstAsync(r => r.ReviewId == reviewId, ct);
+
+        var organization = await _db.Organizations.FirstAsync(o => o.OrganizationId == review.OrganizationId, ct);
+        organization.ApprovalStatus = request.Approve
             ? OrganizationApprovalStatuses.Approved
             : OrganizationApprovalStatuses.Rejected;
 
@@ -415,7 +446,6 @@ public sealed class AdminService : IAdminService
         if (account is null) return;
 
         var anonymizedEmail = $"deleted-{userId:N}@deleted.local";
-        var now = _clock.UtcNow;
 
         account.Email = anonymizedEmail;
         account.EmailVerified = false;
@@ -517,7 +547,5 @@ public sealed class AdminService : IAdminService
         await _db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM dbo.USER_INTEREST WHERE user_id = {userId}", ct);
         await _db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM dbo.USER_SKILL WHERE user_id = {userId}", ct);
         await _db.UserFollows.Where(f => f.FollowerId == userId || f.FollowedId == userId).ExecuteDeleteAsync(ct);
-
-        account.CreatedAt = now;
     }
 }

@@ -1895,6 +1895,10 @@ public partial class HamzetWaslDbContext : IdentityDbContext<AppUser, IdentityRo
                 .IsUnique()
                 .HasFilter("([interview_slot_id] IS NOT NULL)");
 
+            entity.HasIndex(e => e.VolunteerId, "UX_VERIFICATION_REVIEW_volunteer_open")
+                .IsUnique()
+                .HasFilter("([status] IN (N'draft', N'pending', N'interview_scheduled'))");
+
             entity.Property(e => e.ReviewId)
                 .HasDefaultValueSql("(newsequentialid())", "DF_VERIFICATION_REVIEW_review_id")
                 .HasColumnName("review_id");

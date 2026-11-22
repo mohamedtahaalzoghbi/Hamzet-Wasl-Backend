@@ -15,8 +15,8 @@
 
 - [ ] نسخة احتياطية من قاعدة البيانات تعمل.
 - [ ] المخطط المرجعي `Hamzet_Wasl_Schema_v2.sql` مطبَّق على قاعدة حديثة (قاعدة فارغة تُنشأ تلقائياً).
-- [ ] السكربتان `Hamzet_Wasl_Migration_v2_1_review_created_at.sql` و`Hamzet_Wasl_Migration_v2_2_geo_tables.sql`
-      مطبَّقان على أي قاعدة قديمة.
+- [ ] سكربتات الترقية الثلاثة من `db/migrations/` (`v2_1_review_created_at` و`v2_2_geo_tables`
+      و`v2_3_open_review_index`) مطبَّقة على أي قاعدة قديمة.
 - [ ] حسابات العرض موجودة: تشغيل `tools\seed-demo-accounts.ps1` بعد تشغيل الـ API.
 - [ ] الملف المحلي `src/HamzetWasl.Api/appsettings.Development.json` موجود (منسوخ من القالب)
       ومضبوط بمفاتيح التوقيع وكلمة مرور الأدمن التي تريد عرضها.

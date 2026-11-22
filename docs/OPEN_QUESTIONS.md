@@ -95,6 +95,13 @@ There are no tables for governorates, areas, business fields, or employee ranges
 
 **Default used:** Verification evidence: 90 days after decision. Organization documents: while the organization is active, plus 30 days after deletion. SOS alerts: 30 days. Audit records: 5 years. All configurable.
 
+**Applied in code (review-fix round, November 22, 2026):** `EvidenceRetentionCleanupService`
+(a hosted background service, `Retention:CleanupIntervalHours`, default 24 h) deletes the
+encrypted file and the `VERIFICATION_EVIDENCE` row once `retention_until` has passed on a
+closed review (approved/rejected/cancelled). Evidence of an open round is never deleted, and
+replaced files are deleted at replacement time. Organization documents, SOS alerts and audit
+pruning remain manual.
+
 ### Q14 — Rejected organization account
 
 `USER_ACCOUNT.account_status` has no `rejected` value.
@@ -110,6 +117,13 @@ There are no tables for governorates, areas, business fields, or employee ranges
 `VERIFICATION_REVIEW` has no `decision_notes` column.
 
 **Default used:** No free-text volunteer rejection notes. The decision is recorded in `VERIFICATION_REVIEW.status` and `ADMIN_AUDIT` action/outcome.
+
+**Applied in code (review-fix round, November 22, 2026):** the shared `DecisionRequest` no
+longer requires `notes` on rejection, because the required text was silently discarded. The
+organization decision keeps the requirement (enforced in `AdminService`) because
+`ORGANIZATION_REVIEW.decision_notes` is persisted. Showing the rejection reason to the
+volunteer still needs an approved schema addition (a `decision_notes` column); until the
+supervisor approves it, the API accepts but does not store volunteer notes.
 
 ### Q17 — Upload limits
 
@@ -147,6 +161,30 @@ id that belongs to another user). `read_at` is therefore no longer dead.
 
 **Known limitation:** `payloadJson` (the notification target) is only carried by the live SignalR
 event because the table has no column for it; see `docs/DEVIATIONS.md` entry 19.
+
+### Q23 — Evidence upload lock
+
+The design ties evidence to one review round, and a re-application after a rejection starts a
+new round, but it never says explicitly when uploads close.
+
+**Chosen conservative rule (review-fix round, November 22, 2026):** evidence can be uploaded or
+replaced only while the round is `draft`. Booking the interview locks the documents; cancelling
+the booking or a rejection (which returns the round to `draft`) unlocks them again.
+
+### Q24 — Decision timing and the `pending` status
+
+The designed path is documents, then the interview, then the decision. No code path ever moved
+a review to `pending`, and a decision was accepted even before the booked interview happened.
+
+**Applied in code (review-fix round, November 22, 2026):** a volunteer decision is accepted
+while the round is open — `pending` or `interview_scheduled` — and the conditional atomic
+update (`ExecuteUpdateAsync` on the current status) lets exactly one of two concurrent
+decisions win; the loser receives 422 `INVALID_STATE`. Rounds are created as `draft` and
+booking the interview moves them to `interview_scheduled`; `pending` stays a valid schema
+status that the decision endpoint and the admin queue accept, but no API flow transitions into
+it until a design decision defines its transition. Requiring the booked interview to have
+happened before deciding remains an open design question and is intentionally **not** enforced
+yet.
 
 ## B. Assumptions
 

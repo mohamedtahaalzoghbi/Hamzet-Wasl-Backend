@@ -823,6 +823,9 @@ CREATE INDEX IX_ACCESSIBILITY_PROFILE_consent_id ON dbo.ACCESSIBILITY_PROFILE(co
 CREATE INDEX IX_AREA_governorate_id ON dbo.AREA(governorate_id);
 CREATE INDEX IX_ORGANIZATION_DOCUMENT_organization_id ON dbo.ORGANIZATION_DOCUMENT(organization_id);
 CREATE UNIQUE INDEX UX_VERIFICATION_REVIEW_interview_slot ON dbo.VERIFICATION_REVIEW(interview_slot_id) WHERE interview_slot_id IS NOT NULL;
+-- One OPEN review round per volunteer; closed rounds (approved/rejected/cancelled)
+-- keep their history. Backfilled by Hamzet_Wasl_Migration_v2_3_open_review_index.sql.
+CREATE UNIQUE INDEX UX_VERIFICATION_REVIEW_volunteer_open ON dbo.VERIFICATION_REVIEW(volunteer_id) WHERE status IN (N'draft', N'pending', N'interview_scheduled');
 CREATE INDEX IX_INTERVIEW_SLOT_reviewer_id ON dbo.INTERVIEW_SLOT(reviewer_id);
 CREATE UNIQUE INDEX UX_USER_ACCOUNT_phone ON dbo.USER_ACCOUNT(phone) WHERE phone IS NOT NULL;
 CREATE INDEX IX_DELETION_REQUEST_user_id ON dbo.DELETION_REQUEST(user_id);

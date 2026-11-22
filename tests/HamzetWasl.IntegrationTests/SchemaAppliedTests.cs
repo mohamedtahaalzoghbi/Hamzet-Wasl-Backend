@@ -178,7 +178,7 @@ public class SchemaAppliedTests(ApiFixture fixture)
     private static string ReadSchemaScript()
     {
         var root = Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..");
-        var candidate = Path.GetFullPath(Path.Combine(root, "Hamzet_Wasl_Schema_v2.sql"));
+        var candidate = Path.GetFullPath(Path.Combine(root, "db", "Hamzet_Wasl_Schema_v2.sql"));
         Assert.True(File.Exists(candidate), $"Authoritative schema not found at {candidate}.");
         return File.ReadAllText(candidate);
     }

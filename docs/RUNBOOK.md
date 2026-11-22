@@ -82,20 +82,21 @@ powershell -ExecutionPolicy Bypass -File .\tools\start-api.ps1        # build + 
 powershell -ExecutionPolicy Bypass -File .\tools\start-api.ps1 -Stop  # stop it
 ```
 
-`tools\start-api.ps1` builds the project, applies the two migration scripts when the
-local database misses their objects (they are idempotent), starts the API in the
-background on `http://localhost:5153` and opens the Swagger UI.
+`tools\start-api.ps1` builds the project, applies the three migration scripts from
+`db/migrations/` when the local database misses their objects (they are idempotent), starts
+the API in the background on `http://localhost:5153` and opens the Swagger UI.
 `tools\create-shortcuts.ps1` writes the **Hamzet Wasl API** shortcuts to the desktop
 and to the project folder.
 
 ### Migrating an existing database
 
 ```powershell
-sqlcmd -S "(localdb)\MSSQLLocalDB" -d HamzetWasl -i Hamzet_Wasl_Migration_v2_1_review_created_at.sql
-sqlcmd -S "(localdb)\MSSQLLocalDB" -d HamzetWasl -i Hamzet_Wasl_Migration_v2_2_geo_tables.sql
+sqlcmd -S "(localdb)\MSSQLLocalDB" -d HamzetWasl -i db\migrations\Hamzet_Wasl_Migration_v2_1_review_created_at.sql
+sqlcmd -S "(localdb)\MSSQLLocalDB" -d HamzetWasl -i db\migrations\Hamzet_Wasl_Migration_v2_2_geo_tables.sql
+sqlcmd -S "(localdb)\MSSQLLocalDB" -d HamzetWasl -i db\migrations\Hamzet_Wasl_Migration_v2_3_open_review_index.sql
 ```
 
-Both scripts are idempotent and set `QUOTED_IDENTIFIER ON` themselves: `sqlcmd` runs with
+All three scripts are idempotent and set `QUOTED_IDENTIFIER ON` themselves: `sqlcmd` runs with
 `QUOTED_IDENTIFIER OFF` by default, and `VERIFICATION_REVIEW` carries a filtered index, so
 any write on that table fails with error 1934 otherwise.
 
@@ -132,9 +133,9 @@ dotnet test tests/HamzetWasl.UnitTests/HamzetWasl.UnitTests.csproj        # fast
 dotnet test tests/HamzetWasl.IntegrationTests/HamzetWasl.IntegrationTests.csproj
 ```
 
-Unit tests (131) cover the §1.9 business rules, the validators, the phone normaliser, the file
-rules, the token purposes, the UTC serialisation, the accessibility preset and the **schema parity
-test** (EF model vs `Hamzet_Wasl_Schema_v2.sql`).
+Unit tests (143) cover the §1.9 business rules, the validators, the phone normaliser, the file
+rules, the token purposes, the UTC serialisation, the accessibility preset, the **schema parity
+test** (EF model vs `db/Hamzet_Wasl_Schema_v2.sql`) and the race-safe verification flow.
 
 Integration tests (41) run against a real SQL Server:
 
