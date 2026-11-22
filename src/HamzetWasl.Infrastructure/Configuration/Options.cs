@@ -37,6 +37,7 @@ public sealed class RetentionOptions
     public int OrganizationDocumentsDaysAfterDeletion { get; set; } = 30;
     public int SosAlertsDays { get; set; } = 30;
     public int AuditYears { get; set; } = 5;
+    public int CleanupIntervalHours { get; set; } = 24;
 }
 
 public sealed class SeedOptions
