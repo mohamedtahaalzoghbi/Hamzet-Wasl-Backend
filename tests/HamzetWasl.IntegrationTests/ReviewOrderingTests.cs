@@ -87,8 +87,11 @@ public class ReviewOrderingTests(ApiFixture fixture)
     /// <summary>
     /// Inserts one review row directly. The ordering of the read queries is what is under
     /// test, so the rows are written through the DbContext instead of a long UI flow.
+    /// The filtered unique index UX_VERIFICATION_REVIEW_volunteer_open allows only one OPEN
+    /// round (draft/pending/interview_scheduled) per volunteer, so a fixture that needs two
+    /// rows either closes the older round or uses a second volunteer.
     /// </summary>
-    private async Task AddReviewAsync(Guid volunteerId, Guid reviewId, DateTime createdAt)
+    private async Task AddReviewAsync(Guid volunteerId, Guid reviewId, DateTime createdAt, string status)
     {
         await using var scope = fixture.Factory.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<HamzetWaslDbContext>();
@@ -99,7 +102,7 @@ public class ReviewOrderingTests(ApiFixture fixture)
             VolunteerId = volunteerId,
             ReviewerId = null,
             VerificationLevel = VerificationLevels.Basic,
-            Status = VerificationReviewStatuses.Pending,
+            Status = status,
             CreatedAt = createdAt
         });
 
@@ -128,8 +131,10 @@ public class ReviewOrderingTests(ApiFixture fixture)
         var client = Authed(user.AccessToken);
         var (olderReviewId, newerReviewId) = ReviewIds();
 
-        await AddReviewAsync(user.UserId, olderReviewId, DateTime.UtcNow.AddMinutes(-10));
-        await AddReviewAsync(user.UserId, newerReviewId, DateTime.UtcNow.AddMinutes(-1));
+        // Only one OPEN round per volunteer (unique index), so the older round is closed;
+        // the read path must still pick the newest created_at, not the largest review id.
+        await AddReviewAsync(user.UserId, olderReviewId, DateTime.UtcNow.AddMinutes(-10), VerificationReviewStatuses.Rejected);
+        await AddReviewAsync(user.UserId, newerReviewId, DateTime.UtcNow.AddMinutes(-1), VerificationReviewStatuses.Pending);
 
         var (status, data, error) = await client.GetAsync<VerificationResponse>("/api/v1/me/verification");
 
@@ -146,12 +151,15 @@ public class ReviewOrderingTests(ApiFixture fixture)
     [Fact]
     public async Task The_admin_queue_uses_created_at_as_the_tie_breaker()
     {
-        var user = await RegisterAsync("volunteer", "Admin Queue Ordering");
+        // Only one OPEN round per volunteer (unique index), so the two pending rows
+        // belong to two different volunteers.
+        var olderVolunteer = await RegisterAsync("volunteer", "Admin Queue Ordering A");
+        var newerVolunteer = await RegisterAsync("volunteer", "Admin Queue Ordering B");
         var (olderReviewId, newerReviewId) = ReviewIds();
 
         // Both rows have interview_at = NULL, so the queue falls through to created_at.
-        await AddReviewAsync(user.UserId, olderReviewId, DateTime.UtcNow.AddMinutes(-10));
-        await AddReviewAsync(user.UserId, newerReviewId, DateTime.UtcNow.AddMinutes(-1));
+        await AddReviewAsync(olderVolunteer.UserId, olderReviewId, DateTime.UtcNow.AddMinutes(-10), VerificationReviewStatuses.Pending);
+        await AddReviewAsync(newerVolunteer.UserId, newerReviewId, DateTime.UtcNow.AddMinutes(-1), VerificationReviewStatuses.Pending);
 
         var admin = await AdminLoginAsync();
         var adminClient = Authed(admin.AccessToken);
