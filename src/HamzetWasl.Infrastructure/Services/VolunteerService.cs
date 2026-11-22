@@ -121,6 +121,14 @@ public sealed class VolunteerService : IVolunteerService
         }
 
         var review = await GetOrCreateReviewAsync(profile, ct);
+
+        // Keep the replaced storage keys so the old files can be removed after
+        // the database row is gone; otherwise replaced files stay on disk forever.
+        var replacedKeys = await _db.VerificationEvidences
+            .Where(e => e.ReviewId == review.ReviewId && e.EvidenceType == evidenceType)
+            .Select(e => e.EncryptedStorageKey)
+            .ToListAsync(ct);
+
         var stored = await _storage.SaveAsync(file, FileCategory.VerificationEvidence, userId, ct);
 
         await _db.VerificationEvidences
@@ -136,6 +144,19 @@ public sealed class VolunteerService : IVolunteerService
             RetentionUntil = _clock.UtcNow.AddDays(_retention.VerificationEvidenceDays)
         });
         await _db.SaveChangesAsync(ct);
+
+        foreach (var replacedKey in replacedKeys)
+        {
+            try
+            {
+                await _storage.DeleteAsync(_protector.Unprotect(replacedKey), ct);
+            }
+            catch (Exception)
+            {
+                // Key corruption or a storage failure must not fail the upload;
+                // the retention cleanup removes files whose rows are gone.
+            }
+        }
     }
 
     public async Task SetSocialLinksAsync(Guid userId, IReadOnlyList<SocialLinkInput> links, CancellationToken ct = default)
@@ -205,24 +226,40 @@ public sealed class VolunteerService : IVolunteerService
         }
 
         var now = _clock.UtcNow;
+        var verificationLevel = profile.HelpMode == HelpModes.OnlineAndField ? VerificationLevels.Field : VerificationLevels.Basic;
         await using var transaction = await _db.Database.BeginTransactionAsync(ct);
 
-        var affected = await _db.InterviewSlots
+        // Atomic slot claim: exactly one volunteer can flip an available slot to booked.
+        var slotClaimed = await _db.InterviewSlots
             .Where(s => s.InterviewSlotId == slotId && s.Status == InterviewSlotStatuses.Available && s.StartsAt > now)
             .ExecuteUpdateAsync(s => s.SetProperty(x => x.Status, InterviewSlotStatuses.Booked), ct);
 
-        if (affected == 0)
+        if (slotClaimed == 0)
         {
             throw new AppException(409, ErrorCodes.InterviewSlotUnavailable);
         }
 
         var slot = await _db.InterviewSlots.AsNoTracking().FirstAsync(s => s.InterviewSlotId == slotId, ct);
-        review.ReviewerId = slot.ReviewerId;
-        review.InterviewSlotId = slot.InterviewSlotId;
-        review.InterviewAt = slot.StartsAt;
-        review.Status = VerificationReviewStatuses.InterviewScheduled;
-        review.VerificationLevel = profile.HelpMode == HelpModes.OnlineAndField ? VerificationLevels.Field : VerificationLevels.Basic;
-        review.DecidedAt = null;
+
+        // Atomic review claim: only a still-open review can take the slot, so two
+        // concurrent bookings can never both win and orphan the first one's slot.
+        var reviewClaimed = await _db.VerificationReviews
+            .Where(r => r.ReviewId == review.ReviewId && r.InterviewSlotId == null
+                && (r.Status == VerificationReviewStatuses.Draft || r.Status == VerificationReviewStatuses.Pending))
+            .ExecuteUpdateAsync(s => s
+                .SetProperty(r => r.ReviewerId, slot.ReviewerId)
+                .SetProperty(r => r.InterviewSlotId, slot.InterviewSlotId)
+                .SetProperty(r => r.InterviewAt, slot.StartsAt)
+                .SetProperty(r => r.Status, VerificationReviewStatuses.InterviewScheduled)
+                .SetProperty(r => r.VerificationLevel, verificationLevel)
+                .SetProperty(r => r.DecidedAt, (DateTime?)null), ct);
+
+        if (reviewClaimed == 0)
+        {
+            // Rolls the slot claim back with the transaction.
+            throw new AppException(409, ErrorCodes.InterviewAlreadyBooked);
+        }
+
         profile.VerificationStatus = VerificationStatuses.InterviewScheduled;
 
         await _db.SaveChangesAsync(ct);
@@ -236,6 +273,15 @@ public sealed class VolunteerService : IVolunteerService
             slotId,
             ct);
 
+        await _notifications.NotifyAsync(
+            slot.ReviewerId,
+            NotificationTypes.InterviewBooked,
+            "حجز متطوع موعد مقابلة من مواعيدك.",
+            "interview_slot",
+            slotId,
+            ct);
+
+        _db.Entry(review).State = EntityState.Detached;
         return BuildVerification(profile, await GetLatestReviewAsync(userId, ct));
     }
 
@@ -255,14 +301,34 @@ public sealed class VolunteerService : IVolunteerService
         }
 
         var now = _clock.UtcNow;
+        var oldSlotId = review.InterviewSlotId.Value;
         await using var transaction = await _db.Database.BeginTransactionAsync(ct);
 
-        var affected = await _db.InterviewSlots
+        // Atomic claim of the new slot: exactly one volunteer can flip it to booked.
+        var slotClaimed = await _db.InterviewSlots
             .Where(s => s.InterviewSlotId == slotId && s.Status == InterviewSlotStatuses.Available && s.StartsAt > now)
             .ExecuteUpdateAsync(s => s.SetProperty(x => x.Status, InterviewSlotStatuses.Booked), ct);
-        if (affected == 0) throw new AppException(409, ErrorCodes.InterviewSlotUnavailable);
+        if (slotClaimed == 0) throw new AppException(409, ErrorCodes.InterviewSlotUnavailable);
 
-        var oldSlotId = review.InterviewSlotId.Value;
+        var slot = await _db.InterviewSlots.AsNoTracking().FirstAsync(s => s.InterviewSlotId == slotId, ct);
+        var oldReviewerId = review.ReviewerId;
+
+        // Atomic guard: the review must still hold the old slot, so a concurrent
+        // cancel or change cannot make this request free a slot it no longer owns.
+        var moved = await _db.VerificationReviews
+            .Where(r => r.ReviewId == review.ReviewId
+                && r.Status == VerificationReviewStatuses.InterviewScheduled
+                && r.InterviewSlotId == oldSlotId)
+            .ExecuteUpdateAsync(s => s
+                .SetProperty(r => r.ReviewerId, slot.ReviewerId)
+                .SetProperty(r => r.InterviewSlotId, slot.InterviewSlotId)
+                .SetProperty(r => r.InterviewAt, slot.StartsAt), ct);
+        if (moved == 0)
+        {
+            // Rolls the new slot claim back with the transaction.
+            throw new AppException(409, ErrorCodes.Conflict, "تغيّرت حالة الحجز. أعد المحاولة.");
+        }
+
         if (oldSlotId != slotId)
         {
             await _db.InterviewSlots
@@ -270,11 +336,6 @@ public sealed class VolunteerService : IVolunteerService
                 .ExecuteUpdateAsync(s => s.SetProperty(x => x.Status, InterviewSlotStatuses.Available), ct);
         }
 
-        var slot = await _db.InterviewSlots.AsNoTracking().FirstAsync(s => s.InterviewSlotId == slotId, ct);
-        review.ReviewerId = slot.ReviewerId;
-        review.InterviewSlotId = slot.InterviewSlotId;
-        review.InterviewAt = slot.StartsAt;
-        review.Status = VerificationReviewStatuses.InterviewScheduled;
         profile.VerificationStatus = VerificationStatuses.InterviewScheduled;
         await _db.SaveChangesAsync(ct);
         await transaction.CommitAsync(ct);
@@ -287,6 +348,26 @@ public sealed class VolunteerService : IVolunteerService
             slotId,
             ct);
 
+        await _notifications.NotifyAsync(
+            slot.ReviewerId,
+            NotificationTypes.InterviewChanged,
+            "نُقلت مقابلة متطوع إلى موعد من مواعيدك.",
+            "interview_slot",
+            slotId,
+            ct);
+
+        if (oldReviewerId.HasValue && oldReviewerId.Value != slot.ReviewerId)
+        {
+            await _notifications.NotifyAsync(
+                oldReviewerId.Value,
+                NotificationTypes.InterviewCancelled,
+                "نُقلت مقابلة متطوع من موعدك إلى موعد آخر.",
+                "interview_slot",
+                oldSlotId,
+                ct);
+        }
+
+        _db.Entry(review).State = EntityState.Detached;
         return BuildVerification(profile, await GetLatestReviewAsync(userId, ct));
     }
 
@@ -301,21 +382,38 @@ public sealed class VolunteerService : IVolunteerService
             throw new AppException(422, ErrorCodes.InvalidState, "تم اعتماد حسابك بالفعل.");
         }
 
-        if (review.InterviewSlotId is not null)
+        var slotId = review.InterviewSlotId;
+        var reviewerId = review.ReviewerId;
+
+        // One transaction: the slot release and the review reset commit or fail together.
+        // The state transition is the original one (the round returns to draft); only the
+        // atomicity is new, so a concurrent cancel or decision cannot split the two writes.
+        await using var transaction = await _db.Database.BeginTransactionAsync(ct);
+
+        var cleared = await _db.VerificationReviews
+            .Where(r => r.ReviewId == review.ReviewId && r.InterviewSlotId == slotId)
+            .ExecuteUpdateAsync(s => s
+                .SetProperty(r => r.InterviewSlotId, (Guid?)null)
+                .SetProperty(r => r.InterviewAt, (DateTime?)null)
+                .SetProperty(r => r.ReviewerId, (Guid?)null)
+                .SetProperty(r => r.Status, VerificationReviewStatuses.Draft)
+                .SetProperty(r => r.DecidedAt, (DateTime?)null), ct);
+
+        if (cleared == 0)
         {
-            var slotId = review.InterviewSlotId.Value;
+            throw new AppException(409, ErrorCodes.Conflict, "تغيّرت حالة المراجعة. أعد المحاولة.");
+        }
+
+        if (slotId is not null)
+        {
             await _db.InterviewSlots
                 .Where(s => s.InterviewSlotId == slotId && s.Status == InterviewSlotStatuses.Booked)
                 .ExecuteUpdateAsync(s => s.SetProperty(x => x.Status, InterviewSlotStatuses.Available), ct);
         }
 
-        review.InterviewSlotId = null;
-        review.InterviewAt = null;
-        review.ReviewerId = null;
-        review.Status = VerificationReviewStatuses.Draft;
-        review.DecidedAt = null;
         profile.VerificationStatus = VerificationStatuses.Unverified;
         await _db.SaveChangesAsync(ct);
+        await transaction.CommitAsync(ct);
 
         await _notifications.NotifyAsync(
             userId,
@@ -325,7 +423,19 @@ public sealed class VolunteerService : IVolunteerService
             null,
             ct);
 
-        return BuildVerification(profile, review);
+        if (reviewerId.HasValue)
+        {
+            await _notifications.NotifyAsync(
+                reviewerId.Value,
+                NotificationTypes.InterviewCancelled,
+                "ألغى متطوع موعد المقابلة الذي كان محجوزًا معك.",
+                "interview_slot",
+                slotId,
+                ct);
+        }
+
+        _db.Entry(review).State = EntityState.Detached;
+        return BuildVerification(profile, await GetLatestReviewAsync(userId, ct));
     }
 
     public async Task<IReadOnlyList<AvailabilitySlotDto>> GetAvailabilityAsync(Guid userId, CancellationToken ct = default)
@@ -466,7 +576,22 @@ public sealed class VolunteerService : IVolunteerService
                 CreatedAt = _clock.UtcNow
             };
             _db.VerificationReviews.Add(review);
-            await _db.SaveChangesAsync(ct);
+            try
+            {
+                await _db.SaveChangesAsync(ct);
+            }
+            catch (DbUpdateException)
+            {
+                // A concurrent first upload created the round first: the filtered unique
+                // index UX_VERIFICATION_REVIEW_volunteer_open allows one open review per
+                // volunteer, so the loser detaches its insert and re-reads the winner.
+                _db.Entry(review).State = EntityState.Detached;
+                review = await _db.VerificationReviews
+                    .Where(r => r.VolunteerId == profile.UserId)
+                    .OrderByDescending(r => r.CreatedAt)
+                    .ThenByDescending(r => r.ReviewId)
+                    .FirstAsync(ct);
+            }
             return review;
         }
 
