@@ -85,6 +85,8 @@ public static class DependencyInjection
         services.AddScoped<IAdminService, AdminService>();
         services.AddScoped<DatabaseSeeder>();
 
+        services.AddHostedService<EvidenceRetentionCleanupService>();
+
         return services;
     }
 }
