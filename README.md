@@ -10,7 +10,7 @@
 
 `REST API` · `.NET 10` · `SQL Server` · `Clean Architecture` · `OpenAPI 3.0.4`
 
-[![Tests](https://img.shields.io/badge/tests-172%20passing-12A4A4?style=flat-square)](https://github.com/mohamedtahaalzoghbi/Hamzet-Wasl-Backend/actions/workflows/ci.yml)
+[![Tests](https://img.shields.io/badge/tests-184%20passing-12A4A4?style=flat-square)](https://github.com/mohamedtahaalzoghbi/Hamzet-Wasl-Backend/actions/workflows/ci.yml)
 [![Build](https://img.shields.io/badge/build-0%20warnings-0F4C81?style=flat-square)](https://github.com/mohamedtahaalzoghbi/Hamzet-Wasl-Backend/actions/workflows/ci.yml)
 [![OpenAPI](https://img.shields.io/badge/OpenAPI-3.0.4-12A4A4?style=flat-square)](docs/openapi.json)
 
@@ -24,8 +24,9 @@
 
 **منصة تمكّن ذوي الهمم من إيجاد الدعم والعمل، وتربطهم بالمتطوعين والجمعيات والشركات التي
 تقدّم فرصاً وخدمات. هذا المستودع يحتوي **واجهة الـ Backend** (المرحلة الأولى
-مكتملة): مصادقة JWT، ملفات شخصية، إعدادات إتاحة، تحقّق المتطوعين، دورة حياة المنظمات،
-لوحة إدارة، إشعارات لحظية عبر SignalR، و62 جدولاً في مخطط مرجعي واحد.
+مكتملة): مصادقة JWT، ملفات شخصية، إعدادات إتاحة، تحقّق المتطوعين (بحماية من سباقات
+التزامن)، تنظيف تلقائي لأدلة التحقق بعد انتهاء مدة الاحتفاظ، دورة حياة المنظمات، لوحة إدارة،
+إشعارات لحظية عبر SignalR، و62 جدولاً في مخطط مرجعي واحد.
 
 </div>
 
@@ -38,14 +39,14 @@
 | Runtime | **.NET 10** (`net10.0`) | LTS، مع `Nullable` و`ImplicitUsings` |
 | Web API | **ASP.NET Core** | Controllers + Middleware + Filters |
 | Architecture | **Clean Architecture** | `Api → Application → Domain` و `Infrastructure → Application → Domain` |
-| Database | **SQL Server** | 62 جدولاً في `Hamzet_Wasl_Schema_v2.sql` (بدون EF migrations) |
+| Database | **SQL Server** | 62 جدولاً في `db/Hamzet_Wasl_Schema_v2.sql` (بدون EF migrations) |
 | ORM | Entity Framework Core 10 | المخطط SQL هو المصدر الوحيد للحقيقة |
 | Auth | ASP.NET Core Identity + JWT Bearer | Access 15 دقيقة · Refresh 30 يوم مع تدوير |
 | Validation | FluentValidation 12 | رسائل عربية + أكواد أخطاء ثابتة |
 | Docs | Swashbuckle (OpenAPI 3.0.4) | مُصدَّر آلياً إلى `docs/openapi.json` |
 | Realtime | SignalR | إشعارات لحظية على `/hubs/notifications` |
 | Logging | Serilog | Console + File، بدون بيانات شخصية |
-| Tests | **xUnit** + FluentAssertions + `WebApplicationFactory` | **131** اختبار وحدة + **41** اختبار تكامل |
+| Tests | **xUnit** + FluentAssertions + `WebApplicationFactory` | **143** اختبار وحدة + **41** اختبار تكامل |
 | CI | GitHub Actions | بناء + اختبارات + فحص تطابق OpenAPI + فحص أسرار |
 
 ---
@@ -69,11 +70,11 @@ cd Hamzet-Wasl-Backend
 
 ### 2) تشغيل سكربت قاعدة البيانات
 
-المخطط المرجعي هو `Hamzet_Wasl_Schema_v2.sql` (62 جدولاً + قيود CHECK و Foreign keys).
+المخطط المرجعي هو `db/Hamzet_Wasl_Schema_v2.sql` (62 جدولاً + قيود CHECK و Foreign keys).
 يمكن تشغيله بسطر واحد:
 
 ```powershell
-sqlcmd -S "(localdb)\MSSQLLocalDB" -d HamzetWasl -i Hamzet_Wasl_Schema_v2.sql
+sqlcmd -S "(localdb)\MSSQLLocalDB" -d HamzetWasl -i db\Hamzet_Wasl_Schema_v2.sql
 ```
 
 > **بديل مختصر:** لو تركت الـ API يقلع على قاعدة بيانات فارغة، سيطبّق السكربت **تلقائياً**
@@ -82,10 +83,13 @@ sqlcmd -S "(localdb)\MSSQLLocalDB" -d HamzetWasl -i Hamzet_Wasl_Schema_v2.sql
 
 ### 3) تشغيل سكربتات الترقية (Migrations) للقاعدة القديمة
 
+كل سكربتات الترقية في `db/migrations/` (وأقدمها `Hamzet_Wasl_Migration_v1_to_v2.sql`
+للقواعد التي ما زالت على الإصدار الأول):
+
 ```powershell
-sqlcmd -S "(localdb)\MSSQLLocalDB" -d HamzetWasl -i Hamzet_Wasl_Migration_v2_1_review_created_at.sql
-sqlcmd -S "(localdb)\MSSQLLocalDB" -d HamzetWasl -i Hamzet_Wasl_Migration_v2_2_geo_tables.sql
-sqlcmd -S "(localdb)\MSSQLLocalDB" -d HamzetWasl -i Hamzet_Wasl_Migration_v2_3_open_review_index.sql
+sqlcmd -S "(localdb)\MSSQLLocalDB" -d HamzetWasl -i db\migrations\Hamzet_Wasl_Migration_v2_1_review_created_at.sql
+sqlcmd -S "(localdb)\MSSQLLocalDB" -d HamzetWasl -i db\migrations\Hamzet_Wasl_Migration_v2_2_geo_tables.sql
+sqlcmd -S "(localdb)\MSSQLLocalDB" -d HamzetWasl -i db\migrations\Hamzet_Wasl_Migration_v2_3_open_review_index.sql
 ```
 
 كلها **idempotent** (تعمل بدون أخطاء إن طُبّقت مرتين) وتحتوي على rollback موثّق.
@@ -153,7 +157,7 @@ powershell -ExecutionPolicy Bypass -File .\tools\seed-demo-accounts.ps1
 ## 🧪 تشغيل الاختبارات
 
 ```bash
-# كل الاختبارات (172 اختباراً)
+# كل الاختبارات (184 اختباراً)
 dotnet test HamzetWasl.slnx -c Release
 
 # أو كل مجموعة على حدة
@@ -163,7 +167,7 @@ dotnet test tests/HamzetWasl.IntegrationTests/HamzetWasl.IntegrationTests.csproj
 
 | المجموعة | العدد | ماذا تغطي |
 |---|---|---|
-| Unit | **131** | قواعد العمل، الـ validators، تطبيع الهاتف، قواعد الملفات، التوكنات، توقيتات UTC، حساب الـ preset، الكتالوج الجغرافي، **تطابق المخطط** |
+| Unit | **143** | قواعد العمل، الـ validators، تطبيع الهاتف، قواعد الملفات، التوكنات، توقيتات UTC، حساب الـ preset، الكتالوج الجغرافي، **تطابق المخطط**، تدفق التحقق وحمايات التزامن |
 | Integration | **41** | تدفقات حقيقية عبر HTTP على SQL Server حقيقي (تسجيل، رفع، مراجعة، إشعارات، صلاحيات، حد معدل، طلبات حذف) |
 
 اختبارات التكامل تنشئ قاعدة `HamzetWasl_IT_<guid>` مؤقتة وتطبّق المخطط المرجعي كما هو ثم تحذفها.
@@ -223,9 +227,10 @@ export HW_TEST_SQL_PASSWORD="<your-password>"
 
 ```
 HamzetWasl.slnx                  الحل (Solution)
-Hamzet_Wasl_Schema_v2.sql        المخطط المرجعي (62 جدولاً) — مصدر الحقيقة
-Hamzet_Wasl_Migration_*.sql      سكربتات ترقية قواعد البيانات الموجودة
-MASTER_PROMPT.md                 متطلبات المشروع الأصلية
+
+db/
+├── Hamzet_Wasl_Schema_v2.sql    المخطط المرجعي (62 جدولاً) — مصدر الحقيقة
+└── migrations/                  سكربتات ترقية قواعد البيانات الموجودة (idempotent + rollback)
 
 src/
 ├── HamzetWasl.Domain/          الكيانات + قواعد العمل (بلا اعتماديات خارجية)
@@ -236,7 +241,7 @@ tests/
 ├── HamzetWasl.UnitTests/       قواعد العمل، الـ validators، تطابق المخطط
 └── HamzetWasl.IntegrationTests/ تدفقات حقيقية على SQL Server
 docs/                           التوثيق + openapi.json + logo
-design/                         مخططات الـ ERD + ملفات الـ UI + مقترح المشروع
+design/                         MASTER_PROMPT + مخططات الـ ERD + ملفات الـ UI + مقترح المشروع
 tools/                          سكربتات التشغيل والاختصارات وحسابات العرض
 ```
 
