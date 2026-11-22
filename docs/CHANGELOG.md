@@ -65,6 +65,40 @@ column used here already exists in `Hamzet_Wasl_Schema_v2.sql`.
   queue, ordering and paging, IDOR isolation, and read idempotency.
 - `docs/openapi.json` regenerated: 59 paths / 69 operations / 116 schemas.
 
+### The design-first review-fix round (November 22, 2026): race safety and retention
+
+Schema change (owner-requested review-fix round): the filtered unique index
+`UX_VERIFICATION_REVIEW_volunteer_open` on `VERIFICATION_REVIEW(volunteer_id) WHERE status IN
+('draft','pending','interview_scheduled')` (script + EF model; migration
+`Hamzet_Wasl_Migration_v2_3_open_review_index.sql` for existing databases). One open review
+round per volunteer; closed rounds keep their history, so re-application stays allowed.
+
+- **Exactly-once decisions**: both volunteer and organization decisions are conditional
+  atomic updates, so two concurrent decisions can no longer both succeed. Eligibility is
+  unchanged (`pending` or `interview_scheduled` for volunteers, `pending` for
+  organizations); requiring the interview to have happened first is an open design
+  question (Q24), not implemented.
+- **Race-safe interview flow**: booking, changing and cancelling use conditional atomic
+  updates on the slot and the review inside one transaction, so two concurrent bookings
+  can no longer orphan a slot, and a concurrent cancel or decision cannot split the slot
+  release from the review update. First-upload review creation treats the unique-index
+  violation as a re-read. The cancel state transition itself is unchanged.
+- **Retention implemented** (Q13): replaced evidence files are deleted from storage at
+  replacement time, and `EvidenceRetentionCleanupService` (hosted,
+  `Retention:CleanupIntervalHours`, default 24 h) deletes the encrypted file and row once
+  `retention_until` passes on a closed review. Evidence of an open round is never deleted.
+- **Reviewer notifications**: the slot owner is notified on booking, change and cancel
+  (`interview_booked` / `interview_changed` / `interview_cancelled`).
+- **Account deletion no longer rewrites `created_at`**: the anonymisation leaves
+  `USER_ACCOUNT.created_at` untouched instead of stamping the deletion time.
+- **Documentation honesty**: `DEVIATIONS` #4 now states what the code actually does with
+  volunteer rejection notes.
+- **Unchanged on purpose, flagged as open questions**: the volunteer rejection-notes
+  contract (required by the validator, not stored — Q16 awaits a supervisor decision on a
+  `decision_notes` column), the evidence upload lock timing (Q23), and the decision timing
+  relative to the interview (Q24). No endpoint or DTO shape changed, so existing clients
+  keep working.
+
 ### The Phase 1 UI-alignment round (batch 2): review creation time
 
 Schema change (approved): `VERIFICATION_REVIEW.created_at DATETIME2(0) NOT NULL DEFAULT
@@ -176,4 +210,3 @@ The two migration scripts failed on a database that really needed them, so they 
 - Interview slots must start in the future; duration stays 15–120 minutes.
 - Volunteer `weeklyHours` is validated as 1–168.
 - `serviceRadiusKm` is optional (the schema allows `NULL`); when present it must be 1–200.
-
