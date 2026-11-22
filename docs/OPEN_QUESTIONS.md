@@ -176,11 +176,15 @@ the booking or a rejection (which returns the round to `draft`) unlocks them aga
 The designed path is documents, then the interview, then the decision. No code path ever moved
 a review to `pending`, and a decision was accepted even before the booked interview happened.
 
-**Chosen conservative rule (review-fix round, November 22, 2026):** a volunteer decision is
-accepted only on `interview_scheduled` with `interview_at` already in the past (422 otherwise),
-and the conditional atomic update guarantees the decision happens exactly once. `pending` stays
-a valid schema status but is not used by the API until a design decision defines its
-transition.
+**Applied in code (review-fix round, November 22, 2026):** a volunteer decision is accepted
+while the round is open — `pending` or `interview_scheduled` — and the conditional atomic
+update (`ExecuteUpdateAsync` on the current status) lets exactly one of two concurrent
+decisions win; the loser receives 422 `INVALID_STATE`. Rounds are created as `draft` and
+booking the interview moves them to `interview_scheduled`; `pending` stays a valid schema
+status that the decision endpoint and the admin queue accept, but no API flow transitions into
+it until a design decision defines its transition. Requiring the booked interview to have
+happened before deciding remains an open design question and is intentionally **not** enforced
+yet.
 
 ## B. Assumptions
 
