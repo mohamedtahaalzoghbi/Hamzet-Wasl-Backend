@@ -298,8 +298,15 @@ try
 
     var origins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
                   ?? ["http://localhost:3000", "http://localhost:5173"];
-    builder.Services.AddCors(options => options.AddPolicy("Default", policy =>
-        policy.WithOrigins(origins).AllowAnyHeader().AllowAnyMethod().AllowCredentials()));
+    // Demo-friendly default requested for Flutter Web. Disable and set explicit
+    // AllowedOrigins for a restricted browser client; never allow wildcard credentials.
+    builder.Services.AddCors(options =>
+    {
+        options.AddPolicy("Default", policy =>
+            policy.WithOrigins(origins).AllowAnyHeader().AllowAnyMethod().AllowCredentials());
+        options.AddPolicy("AllowAll", policy =>
+            policy.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod());
+    });
 
     var app = builder.Build();
 
@@ -322,7 +329,7 @@ try
         await next();
     });
 
-    if (app.Configuration.GetValue<bool>("Swagger:Enabled") || app.Environment.IsDevelopment())
+    if (app.Configuration.GetValue("Swagger:Enabled", true))
     {
         app.UseSwagger();
         app.UseSwaggerUI(options =>
@@ -340,8 +347,21 @@ try
         RequestPath = "/media"
     });
 
-    app.UseHttpsRedirection();
-    app.UseCors("Default");
+    // Render terminates TLS and redirects HTTP at its edge. Set this flag false
+    // on Render instead of trusting forwarded headers from arbitrary senders.
+    if (app.Configuration.GetValue("HttpsRedirection:Enabled", true))
+    {
+        app.UseHttpsRedirection();
+    }
+
+    if (app.Configuration.GetValue("Cors:AllowAll", true))
+    {
+        app.UseCors("AllowAll");
+    }
+    else
+    {
+        app.UseCors("Default");
+    }
     app.UseAuthentication();
     // The rate limiter runs after the authentication middleware so the policies can be
     // partitioned per user and not only per IP.
@@ -367,6 +387,9 @@ try
         var connectionString = app.Configuration.GetConnectionString("DefaultConnection")
             ?? throw new InvalidOperationException("ConnectionStrings:DefaultConnection is required.");
 
+        // This project has no EF migrations. Its embedded SQL schema and Identity
+        // initializer are the existing source of truth. MigrateAsync alone would
+        // create no domain tables and must not be mixed into this bootstrap.
         await scope.ServiceProvider.GetRequiredService<SchemaBootstrapper>().EnsureAsync(connectionString);
 
         var db = scope.ServiceProvider.GetRequiredService<HamzetWaslDbContext>();
