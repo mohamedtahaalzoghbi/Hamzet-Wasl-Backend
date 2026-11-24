@@ -7,8 +7,8 @@ namespace HamzetWasl.IntegrationTests;
 
 /// <summary>
 /// Executes the Redis backend of the pending-registration store against a real server.
-/// Runs only when HW_TEST_REDIS is set (CI provides a redis:7-alpine service); without a
-/// server the tests pass as no-ops, and the in-memory backend's own tests still apply.
+/// Runs only when HW_TEST_REDIS is set (a Redis server is available); otherwise the tests
+/// are explicitly skipped, and the in-memory backend's own tests still apply.
 /// </summary>
 public sealed class PendingRegistrationRedisTests
 {
@@ -18,10 +18,10 @@ public sealed class PendingRegistrationRedisTests
         new(new PendingRegistration("password", RoleNames.Volunteer, "م", "a@b.com", "+2010", "hash", null, "1.0"),
             codeHash, now.AddMinutes(10), now);
 
-    [Fact]
+    [SkippableFact]
     public async Task Concurrent_consumes_of_one_ticket_yield_exactly_one_success()
     {
-        if (Configuration is null) return;
+        Skip.If(Configuration is null, "HW_TEST_REDIS is not set (no Redis server available).");
 
         await using var redis = await ConnectionMultiplexer.ConnectAsync(Configuration);
         var store = new RedisPendingRegistrationStore(redis);
@@ -36,10 +36,10 @@ public sealed class PendingRegistrationRedisTests
         Assert.Equal(19, outcomes.Count(o => o.Status == PendingConsumeStatus.TicketUnknown));
     }
 
-    [Fact]
+    [SkippableFact]
     public async Task Concurrent_wrong_codes_cannot_exceed_the_attempt_limit()
     {
-        if (Configuration is null) return;
+        Skip.If(Configuration is null, "HW_TEST_REDIS is not set (no Redis server available).");
 
         await using var redis = await ConnectionMultiplexer.ConnectAsync(Configuration);
         var store = new RedisPendingRegistrationStore(redis);
@@ -55,10 +55,10 @@ public sealed class PendingRegistrationRedisTests
         Assert.NotNull(await store.GetAsync(pendingId));
     }
 
-    [Fact]
+    [SkippableFact]
     public async Task A_consumed_ticket_stays_consumed_after_the_lock_is_released()
     {
-        if (Configuration is null) return;
+        Skip.If(Configuration is null, "HW_TEST_REDIS is not set (no Redis server available).");
 
         await using var redis = await ConnectionMultiplexer.ConnectAsync(Configuration);
         var store = new RedisPendingRegistrationStore(redis);
