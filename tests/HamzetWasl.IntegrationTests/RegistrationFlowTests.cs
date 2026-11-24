@@ -69,7 +69,7 @@ public class RegistrationFlowTests(ApiFixture fixture)
         Assert.True(pending!.RequiresPhoneVerification);
         Assert.False(string.IsNullOrWhiteSpace(pending.RegistrationTicket));
         Assert.True(pending.ExpiresAt > DateTime.UtcNow);
-        Assert.Equal(phone, pending.Phone);
+        Assert.Equal("+20" + phone.TrimStart('0'), pending.Phone);
 
         // No account exists yet: the credentials must not authenticate.
         var (loginStatus, _, loginError) = await Anon().PostAsync<AuthResponse>("/api/v1/auth/login", new
@@ -151,6 +151,34 @@ public class RegistrationFlowTests(ApiFixture fixture)
 
         Assert.Equal(422, status);
         Assert.Equal(ErrorCodes.RegistrationExpired, error!.Code);
+    }
+
+    [Fact]
+    public async Task Concurrent_completes_of_one_ticket_create_exactly_one_account()
+    {
+        var (pending, code) = await StartAsync("disabled_user", Email("race"), Phone());
+
+        var attempts = Enumerable.Range(0, 5).Select(_ =>
+            Anon().PostAsync<AuthResponse>("/api/v1/auth/register/complete", new
+            {
+                registrationTicket = pending.RegistrationTicket,
+                code
+            })).ToArray();
+        var results = await Task.WhenAll(attempts);
+
+        Assert.Equal(1, results.Count(r => r.Item1 == 201));
+        Assert.All(results.Where(r => r.Item1 != 201), r =>
+        {
+            Assert.Equal(422, r.Item1);
+            Assert.Equal(ErrorCodes.RegistrationExpired, r.Item3!.Code);
+        });
+
+        var (loginStatus, _, _) = await Anon().PostAsync<AuthResponse>("/api/v1/auth/login", new
+        {
+            emailOrPhone = results.First(r => r.Item1 == 201).Item2!.Email,
+            password = "Passw0rd!"
+        });
+        Assert.Equal(200, loginStatus);
     }
 
     [Fact]
