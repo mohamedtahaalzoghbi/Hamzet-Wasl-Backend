@@ -188,24 +188,49 @@ public sealed class AuthService : IAuthService
             throw AppException.Conflict(ErrorCodes.PhoneAlreadyExists);
         }
 
-        return await CreateAccountFromPendingAsync(record.Pending, ct);
+        try
+        {
+            return await CreateAccountFromPendingAsync(record.Pending, ct);
+        }
+        catch (DbUpdateException ex) when (IsUniqueViolation(ex))
+        {
+            // The race the re-check cannot close: the email or phone was taken between
+            // the check and the insert - including a concurrent complete of the same
+            // ticket. The unique constraints make one winner; the loser gets a clean 409.
+            throw AppException.Conflict(ErrorCodes.Conflict);
+        }
     }
+
+    private static bool IsUniqueViolation(DbUpdateException ex) =>
+        ex.ToString().Contains("UQ_USER_ACCOUNT", StringComparison.OrdinalIgnoreCase) ||
+        ex.ToString().Contains("UX_USER_ACCOUNT", StringComparison.OrdinalIgnoreCase) ||
+        ex.ToString().Contains("UNIQUE constraint", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>Issues a fresh code for an existing pending registration.</summary>
     public async Task ResendRegistrationCodeAsync(ResendRegistrationCodeRequest request, CancellationToken ct = default)
     {
         var (pendingId, record) = await LoadPendingRegistrationAsync(request.RegistrationTicket, ct);
         var purpose = RegisterPurpose(record.Pending.Phone);
+        var now = _clock.UtcNow;
+
+        // Resends renew the code but cannot keep a pending registration alive forever:
+        // the whole flow is bounded to three code lifetimes from the first issue.
+        var maxLifetime = TimeSpan.FromMinutes(_otp.ExpiryMinutes * 3);
+        if (now - record.FirstIssuedAt >= maxLifetime)
+        {
+            throw new AppException(422, ErrorCodes.RegistrationExpired);
+        }
 
         await EnsureTargetCooldownAsync(record.Pending.Phone, ct);
         await _otp.EnsureCanSendAsync(pendingId, purpose, ct);
 
         var code = _otp.GenerateCode();
-        var now = _clock.UtcNow;
+        var renewedUntil = now.AddMinutes(_otp.ExpiryMinutes);
+        var lifetimeEnd = record.FirstIssuedAt.Add(maxLifetime);
         var renewed = record with
         {
             CodeHash = _otp.Hash(pendingId, purpose, code),
-            ExpiresAt = now.AddMinutes(_otp.ExpiryMinutes)
+            ExpiresAt = renewedUntil < lifetimeEnd ? renewedUntil : lifetimeEnd
         };
         await _cache.SetStringAsync(PendingRegistrationKey(pendingId), JsonSerializer.Serialize(renewed),
             PendingRegistrationOptions(), ct);
@@ -581,7 +606,8 @@ public sealed class AuthService : IAuthService
         string? GoogleSubject,
         string PolicyVersion);
 
-    private sealed record PendingRegistrationRecord(PendingRegistration Pending, string CodeHash, DateTime ExpiresAt);
+    private sealed record PendingRegistrationRecord(
+        PendingRegistration Pending, string CodeHash, DateTime ExpiresAt, DateTime FirstIssuedAt);
 
     private static string PendingRegistrationKey(Guid pendingId) => $"reg:pending:{pendingId:N}";
 
@@ -605,7 +631,7 @@ public sealed class AuthService : IAuthService
         var code = _otp.GenerateCode();
         var now = _clock.UtcNow;
         var record = new PendingRegistrationRecord(
-            pending, _otp.Hash(pendingId, purpose, code), now.AddMinutes(_otp.ExpiryMinutes));
+            pending, _otp.Hash(pendingId, purpose, code), now.AddMinutes(_otp.ExpiryMinutes), now);
         await _cache.SetStringAsync(PendingRegistrationKey(pendingId), JsonSerializer.Serialize(record),
             PendingRegistrationOptions(), ct);
 

@@ -264,6 +264,54 @@ public sealed class RegistrationFlowTests : SqliteServiceTestBase
     }
 
     [Fact]
+    public async Task Complete_conflicts_cleanly_when_the_email_was_taken_after_the_start()
+    {
+        SeedRole(RoleNames.Volunteer);
+        var (auth, _, sms) = NewAuth();
+        var pending = await auth.RegisterAsync(VolunteerRequest());
+
+        // Another registration completed for the same email while the code was on its way
+        // (a second context stands in for the other request).
+        await using var otherDb = NewSecondContext();
+        otherDb.UserAccounts.Add(new UserAccount
+        {
+            UserId = Guid.NewGuid(),
+            RoleId = 1,
+            Email = "new@example.com",
+            EmailVerified = true,
+            PhoneVerified = true,
+            AccountStatus = AccountStatuses.Active,
+            CreatedAt = Clock.UtcNow
+        });
+        await otherDb.SaveChangesAsync();
+
+        var complete = async () => await auth.CompleteRegistrationAsync(new CompleteRegistrationRequest
+        {
+            RegistrationTicket = pending.RegistrationTicket,
+            Code = sms.LastCode!
+        });
+        (await complete.Should().ThrowAsync<AppException>()).Which.Code.Should().Be(ErrorCodes.EmailAlreadyExists);
+        (await Db.UserAccounts.CountAsync()).Should().Be(1, "only the squatter's account exists");
+    }
+
+    [Fact]
+    public async Task Resend_cannot_keep_a_pending_registration_alive_forever()
+    {
+        SeedRole(RoleNames.Volunteer);
+        var (auth, _, _) = NewAuth();
+        var pending = await auth.RegisterAsync(VolunteerRequest());
+
+        // The flow is bounded to three code lifetimes (30 minutes) from the first issue.
+        Clock.UtcNow = Clock.UtcNow.AddMinutes(31);
+
+        var resend = async () => await auth.ResendRegistrationCodeAsync(new ResendRegistrationCodeRequest
+        {
+            RegistrationTicket = pending.RegistrationTicket
+        });
+        (await resend.Should().ThrowAsync<AppException>()).Which.Code.Should().Be(ErrorCodes.RegistrationExpired);
+    }
+
+    [Fact]
     public async Task Google_signup_also_creates_nothing_until_the_phone_is_verified()
     {
         SeedRole(RoleNames.Volunteer);
