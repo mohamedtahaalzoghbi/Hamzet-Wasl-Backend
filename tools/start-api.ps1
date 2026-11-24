@@ -120,7 +120,7 @@ if ($running) {
 }
 
 # ── 3) The database schema ───────────────────────────────────────────────────
-# An existing database may still miss the columns/tables of the last two migrations.
+# An existing database may still miss the objects of the latest migrations.
 # The scripts are idempotent, so they are applied automatically when something is missing.
 function Get-ConnectionSettings {
     $settingsPath = Join-Path $apiProject 'appsettings.json'
@@ -151,10 +151,10 @@ function Get-SqlCmdArguments {
 $connection = Get-ConnectionSettings
 $sqlArguments = Get-SqlCmdArguments -ConnectionString $connection
 if ($sqlArguments -and (Get-Command sqlcmd -ErrorAction SilentlyContinue)) {
-    $probe = & sqlcmd @sqlArguments -h -1 -W -b -Q "SELECT CASE WHEN OBJECT_ID('dbo.GOVERNORATE','U') IS NULL OR OBJECT_ID('dbo.AREA','U') IS NULL OR COL_LENGTH('dbo.VERIFICATION_REVIEW','created_at') IS NULL OR NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'UX_VERIFICATION_REVIEW_volunteer_open' AND object_id = OBJECT_ID(N'dbo.VERIFICATION_REVIEW','U')) THEN 'MISSING' ELSE 'OK' END" 2>$null
+    $probe = & sqlcmd @sqlArguments -h -1 -W -b -Q "SELECT CASE WHEN OBJECT_ID('dbo.GOVERNORATE','U') IS NULL OR OBJECT_ID('dbo.AREA','U') IS NULL OR COL_LENGTH('dbo.VERIFICATION_REVIEW','created_at') IS NULL OR NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'UX_VERIFICATION_REVIEW_volunteer_open' AND object_id = OBJECT_ID(N'dbo.VERIFICATION_REVIEW','U')) OR EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = N'CK_VOLUNTEER_PROFILE_radius' AND parent_object_id = OBJECT_ID(N'dbo.VOLUNTEER_PROFILE','U') AND definition LIKE N'%200%') THEN 'MISSING' ELSE 'OK' END" 2>$null
     if ($probe -match 'MISSING') {
         Write-Warn 'The database is missing the objects of the latest migrations - applying them now.'
-        foreach ($migration in @('db/migrations/Hamzet_Wasl_Migration_v2_1_review_created_at.sql', 'db/migrations/Hamzet_Wasl_Migration_v2_2_geo_tables.sql', 'db/migrations/Hamzet_Wasl_Migration_v2_3_open_review_index.sql')) {
+        foreach ($migration in @('db/migrations/Hamzet_Wasl_Migration_v2_1_review_created_at.sql', 'db/migrations/Hamzet_Wasl_Migration_v2_2_geo_tables.sql', 'db/migrations/Hamzet_Wasl_Migration_v2_3_open_review_index.sql', 'db/migrations/Hamzet_Wasl_Migration_v2_4_radius_100.sql')) {
             $script = Join-Path $root $migration
             if (-not (Test-Path $script)) { continue }
             & sqlcmd @sqlArguments -b -i $script | Out-Null

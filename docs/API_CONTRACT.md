@@ -283,7 +283,7 @@ Non-`disabled_user` callers get 403 `ACCESSIBILITY_NOT_ALLOWED`.
 | Method | Path | Description |
 |---|---|---|
 | GET/PUT | `/me/volunteer-profile` | `{introduction, helpMode, skillLevel, weeklyHours (1–168), experienceNotes, skillIds}` (200) |
-| GET/PUT | `/me/volunteer-location` | `{governorate, serviceArea, latitude?, longitude?, serviceRadiusKm? (1–200, optional)}` (200) |
+| GET/PUT | `/me/volunteer-location` | `{governorate, serviceArea, latitude?, longitude?, serviceRadiusKm? (1–100, optional)}` (200) |
 | GET | `/me/verification` | `Verification` status object (drives the verification wizard UI) (200) |
 | POST | `/me/verification/evidence` | multipart `evidenceType` + `file` (images ≤ 10 MB); `national_id_front` \| `national_id_back` \| `face_photo` (204) |
 | PUT | `/me/verification/social-links` | `{links:[{platform,url}]}`; `platform` ∈ `facebook\|linkedin\|instagram` (204) |

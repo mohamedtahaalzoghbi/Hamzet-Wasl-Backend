@@ -90,12 +90,12 @@ public class BusinessRulesTests
 
     [Theory]
     [InlineData(1, true)]
-    [InlineData(200, true)]
+    [InlineData(100, true)]
     [InlineData(null, true)]
     [InlineData(0, false)]
-    [InlineData(201, false)]
+    [InlineData(101, false)]
     [InlineData(-5, false)]
-    public void Service_radius_is_between_1_and_200_km(int? radius, bool expected) =>
+    public void Service_radius_is_between_1_and_100_km(int? radius, bool expected) =>
         Assert.Equal(expected, BusinessRules.IsValidRadius(radius));
 
     [Theory]

@@ -225,7 +225,8 @@ public class ValidatorTests
         Assert.True(validator.Validate(Mut(valid, x => x.ServiceArea = "unknown_area")).IsValid);
 
         Assert.False(validator.Validate(Mut(valid, x => x.ServiceRadiusKm = 0)).IsValid);
-        Assert.False(validator.Validate(Mut(valid, x => x.ServiceRadiusKm = 201)).IsValid);
+        Assert.True(validator.Validate(Mut(valid, x => x.ServiceRadiusKm = 100)).IsValid);
+        Assert.False(validator.Validate(Mut(valid, x => x.ServiceRadiusKm = 101)).IsValid);
         Assert.True(validator.Validate(Mut(valid, x => x.ServiceRadiusKm = null)).IsValid);
 
         var lat = new VolunteerLocationRequest

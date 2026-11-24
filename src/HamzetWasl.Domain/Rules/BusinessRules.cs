@@ -60,7 +60,7 @@ public static class BusinessRules
         }
     }
 
-    public static bool IsValidRadius(int? radiusKm) => radiusKm is null or >= 1 and <= 200;
+    public static bool IsValidRadius(int? radiusKm) => radiusKm is null or >= 1 and <= 100;
 
     public static bool IsValidFontScale(decimal fontScale) => fontScale is >= 1.0m and <= 2.0m;
 }

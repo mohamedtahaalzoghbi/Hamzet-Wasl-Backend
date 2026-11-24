@@ -191,7 +191,7 @@ CREATE TABLE dbo.VOLUNTEER_PROFILE (
     weekly_hours INT NOT NULL,
     verification_status NVARCHAR(50) NOT NULL,
     CONSTRAINT PK_VOLUNTEER_PROFILE PRIMARY KEY (user_id),
-    CONSTRAINT CK_VOLUNTEER_PROFILE_radius CHECK (service_radius_km IS NULL OR service_radius_km BETWEEN 1 AND 200),
+    CONSTRAINT CK_VOLUNTEER_PROFILE_radius CHECK (service_radius_km IS NULL OR service_radius_km BETWEEN 1 AND 100),
     CONSTRAINT CK_VOLUNTEER_PROFILE_help_mode CHECK (help_mode IN (N'online_only', N'online_and_field')),
     CONSTRAINT CK_VOLUNTEER_PROFILE_skill_level CHECK (skill_level IN (N'beginner', N'intermediate', N'advanced'))
 );

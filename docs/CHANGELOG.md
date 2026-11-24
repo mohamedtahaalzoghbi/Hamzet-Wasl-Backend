@@ -201,6 +201,12 @@ The two migration scripts failed on a database that really needed them, so they 
   automatically when their objects are missing, so a stale database no longer blocks the
   one-click start.
 
+### Design alignment round (November 24, 2026)
+
+- `serviceRadiusKm` is now **1–100 km** (was 1–200), matching the Figma location screen
+  ("up to 100 km"). Recorded as `docs/DEVIATIONS.md` #24; existing databases apply
+  `db/migrations/Hamzet_Wasl_Migration_v2_4_radius_100.sql`.
+
 ### Earlier changes inside v1
 
 - `POST /me/verification/evidence` (was documented as `PUT`): the evidence type is part of the
@@ -209,4 +215,5 @@ The two migration scripts failed on a database that really needed them, so they 
 - Availability slots are validated as future, ordered and non-overlapping.
 - Interview slots must start in the future; duration stays 15–120 minutes.
 - Volunteer `weeklyHours` is validated as 1–168.
-- `serviceRadiusKm` is optional (the schema allows `NULL`); when present it must be 1–200.
+- `serviceRadiusKm` is optional (the schema allows `NULL`); when present it must be 1–100 km
+  (1–200 before the design alignment round above).

@@ -233,8 +233,8 @@ public sealed class VolunteerLocationRequestValidator : AbstractValidator<Volunt
             .WithMessage("خط العرض غير صحيح.");
         RuleFor(x => x.Longitude).InclusiveBetween(-180m, 180m).When(x => x.Longitude.HasValue)
             .WithMessage("خط الطول غير صحيح.");
-        RuleFor(x => x.ServiceRadiusKm).InclusiveBetween(1, 200).When(x => x.ServiceRadiusKm.HasValue)
-            .WithMessage("نطاق المسافة يجب أن يكون بين ١ و٢٠٠ كم.");
+        RuleFor(x => x.ServiceRadiusKm).InclusiveBetween(1, 100).When(x => x.ServiceRadiusKm.HasValue)
+            .WithMessage("نطاق المسافة يجب أن يكون بين ١ و١٠٠ كم.");
     }
 }
 
