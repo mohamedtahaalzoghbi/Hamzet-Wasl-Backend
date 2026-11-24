@@ -27,6 +27,10 @@ public sealed class OtpOptions
     public int ExpiryMinutes { get; set; } = 10;
     public int MaxAttempts { get; set; } = 5;
     public int ResendCooldownSeconds { get; set; } = 60;
+
+    /// <summary>Cooldown before another code may be sent to the same phone or email,
+    /// regardless of which account or pending registration asked for it.</summary>
+    public int TargetCooldownSeconds { get; set; } = 60;
     public string HashKey { get; set; } = string.Empty;
 }
 

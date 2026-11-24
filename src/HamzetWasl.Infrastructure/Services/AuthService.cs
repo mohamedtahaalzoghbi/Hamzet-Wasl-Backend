@@ -742,7 +742,7 @@ public sealed class AuthService : IAuthService
 
     private Task MarkTargetCooldownAsync(string target, CancellationToken ct) =>
         _cache.SetStringAsync($"otp:cooldown:target:{target}", "1",
-            new DistributedCacheEntryOptions { AbsoluteExpirationRelativeToNow = TimeSpan.FromSeconds(60) }, ct);
+            new DistributedCacheEntryOptions { AbsoluteExpirationRelativeToNow = _otp.TargetCooldown }, ct);
 
     public async Task<UserSessionDto> GetSessionAsync(Guid userId, CancellationToken ct = default)
     {

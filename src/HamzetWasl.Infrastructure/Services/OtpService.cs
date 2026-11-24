@@ -52,6 +52,9 @@ public sealed class OtpService
         return computed.Length == stored.Length && CryptographicOperations.FixedTimeEquals(computed, stored);
     }
 
+    /// <summary>Cooldown that applies to a phone/email target across accounts and registrations.</summary>
+    public TimeSpan TargetCooldown => TimeSpan.FromSeconds(_options.TargetCooldownSeconds);
+
     public async Task EnsureCanSendAsync(Guid userId, string purpose, CancellationToken ct)
     {
         var key = $"otp:cooldown:{purpose}:{userId:N}";

@@ -50,7 +50,12 @@ public sealed class HamzetWaslWebApplicationFactory : WebApplicationFactory<Prog
                 // covered by RateLimitingTests with its own host.
                 ["RateLimiting:AuthPermitLimit"] = "100000",
                 ["RateLimiting:OtpPermitLimit"] = "10000",
-                ["RateLimiting:UploadPermitLimit"] = "10000"
+                ["RateLimiting:UploadPermitLimit"] = "10000",
+
+                // The suite issues codes back-to-back for the same numbers; cooldown behavior
+                // itself is covered by the unit tests with a controlled clock.
+                ["Otp:ResendCooldownSeconds"] = "0",
+                ["Otp:TargetCooldownSeconds"] = "0"
             };
 
             foreach (var entry in _extraConfiguration)
