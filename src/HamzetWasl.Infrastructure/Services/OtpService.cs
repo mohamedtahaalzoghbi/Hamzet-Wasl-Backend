@@ -67,6 +67,11 @@ public sealed class OtpService
 
     public async Task MarkSentAsync(Guid userId, string purpose, CancellationToken ct)
     {
+        if (_options.ResendCooldownSeconds <= 0)
+        {
+            return;
+        }
+
         var key = $"otp:cooldown:{purpose}:{userId:N}";
         await _cache.SetStringAsync(key, _clock.UtcNow.ToString("O"), new DistributedCacheEntryOptions
         {
