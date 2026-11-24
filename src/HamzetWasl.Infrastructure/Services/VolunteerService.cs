@@ -121,6 +121,10 @@ public sealed class VolunteerService : IVolunteerService
         }
 
         var review = await GetOrCreateReviewAsync(profile, ct);
+        if (review.Status != VerificationReviewStatuses.Draft)
+        {
+            throw new AppException(422, ErrorCodes.InvalidState, "لا يمكن تعديل مستندات التحقق بعد حجز المقابلة.");
+        }
 
         // Keep the replaced storage keys so the old files can be removed after
         // the database row is gone; otherwise replaced files stay on disk forever.

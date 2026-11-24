@@ -364,9 +364,6 @@ public sealed class DecisionRequestValidator : AbstractValidator<DecisionRequest
     public DecisionRequestValidator()
     {
         RuleFor(x => x.Notes).MaximumLength(2000).WithMessage("الملاحظات طويلة جدًا.");
-        RuleFor(x => x)
-            .Must(x => x.Approve || !string.IsNullOrWhiteSpace(x.Notes))
-            .WithMessage("اذكر سبب الرفض في الملاحظات.");
     }
 }
 
@@ -375,7 +372,7 @@ public sealed class CreateInterviewSlotRequestValidator : AbstractValidator<Crea
     public CreateInterviewSlotRequestValidator()
     {
         RuleFor(x => x.StartsAt).NotEmpty().WithMessage("وقت الموعد مطلوب.")
-            .GreaterThan(DateTime.UtcNow.AddMinutes(-2))
+            .GreaterThan(_ => DateTime.UtcNow.AddMinutes(-2))
             .WithMessage("وقت الموعد يجب أن يكون في المستقبل.");
         RuleFor(x => x.DurationMinutes).InclusiveBetween(15, 120).WithMessage("مدة المقابلة يجب أن تكون بين ١٥ و١٢٠ دقيقة.");
     }

@@ -370,7 +370,7 @@ in `ADMIN_AUDIT`).
 | Method | Path | Description |
 |---|---|---|
 | GET | `/me/organization` | Current organization profile (403 for a non-organization account) (200) |
-| PUT | `/me/organization` | `{name, field, description, governorate, city, website?, employeeCountRange, contactInformation}` (200) |
+| PUT | `/me/organization` | `{name, field, description, governorate, city, website?, employeeCountRange, contactInformation?}` (200) |
 | PUT | `/me/organization/logo` | multipart image (PNG/JPG ≤ 5 MB) → `{ "logoUrl": "…" }` (200) |
 | PUT | `/me/organization/cover` | multipart image (PNG/JPG ≤ 5 MB) → `{ "coverUrl": "…" }` (200) |
 | PUT | `/me/organization/documents/{documentType}` | `commercial_register` \| `tax_card` \| `address_proof` (PDF/JPG/PNG ≤ 10 MB); `license` optional (200) |
@@ -391,7 +391,7 @@ Rules:
 |---|---|---|
 | GET | `/admin/volunteer-reviews` | paged; filter `?status=` (200) |
 | GET | `/admin/volunteer-reviews/{reviewId}` | detail incl. evidence short-lived URLs (200) |
-| POST | `/admin/volunteer-reviews/{reviewId}/decision` | `{approve, notes?}` — `notes` is **required when `approve=false`** (204) |
+| POST | `/admin/volunteer-reviews/{reviewId}/decision` | `{approve, notes?}` — `notes` is optional (not persisted on `VERIFICATION_REVIEW`) (204) |
 | GET | `/admin/organization-reviews` | paged; filter `?status=` (200) |
 | GET | `/admin/organization-reviews/{reviewId}` | detail incl. documents short-lived URLs (200) |
 | POST | `/admin/organization-reviews/{reviewId}/decision` | `{approve, notes?}` — `notes` is **required when `approve=false`** (204) |

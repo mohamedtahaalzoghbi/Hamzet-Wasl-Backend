@@ -75,9 +75,9 @@ The master prompt names capabilities without exact endpoints: training, availabi
 
 ### Q10 — Reference data
 
-There are no tables for governorates, areas, business fields, or employee ranges.
+There are no tables in the original ERD for governorates, areas, business fields, or employee ranges.
 
-**Default used:** Static metadata in `HamzetWasl.Application` / configuration. The free-text columns `ORGANIZATION.field`, `ORGANIZATION.employee_count_range`, `ORGANIZATION.governorate`, `ORGANIZATION.city`, `VOLUNTEER_PROFILE.governorate`, and `VOLUNTEER_PROFILE.service_area` are validated against those static lists.
+**Resolved (migration v2.2):** `GOVERNORATE` and `AREA` tables were added and seeded from `MetaCatalog` (`IGeoCatalog` with 10-minute `IMemoryCache`); volunteer and organization location validation uses the database tables (with `MetaCatalog` kept only as a fallback while the tables are empty). `ORGANIZATION.field` and `ORGANIZATION.employee_count_range` remain validated against the static `MetaCatalog` lists.
 
 ### Q11 — Help matching without request coordinates
 

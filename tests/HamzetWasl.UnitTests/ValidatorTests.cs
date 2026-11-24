@@ -1,4 +1,4 @@
-﻿using System.Text.Json;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using FluentValidation;
 using HamzetWasl.Application.Contracts.Admin;
@@ -276,13 +276,16 @@ public class ValidatorTests
     }
 
     [Fact]
-    public void Admin_decisions_require_notes_on_rejection()
+    public void Admin_decisions_allow_optional_notes_and_enforce_length_limit()
     {
         var validator = new DecisionRequestValidator();
         Assert.True(validator.Validate(new DecisionRequest { Approve = true }).IsValid);
         Assert.True(validator.Validate(new DecisionRequest { Approve = false, Notes = "ID unclear" }).IsValid);
-        Assert.False(validator.Validate(new DecisionRequest { Approve = false, Notes = "" }).IsValid);
-        Assert.False(validator.Validate(new DecisionRequest { Approve = false, Notes = "   " }).IsValid);
+        // Volunteer reviews have no decision_notes column (Q16), so DecisionRequestValidator
+        // allows empty notes; AdminService enforces required notes on organization rejection.
+        Assert.True(validator.Validate(new DecisionRequest { Approve = false, Notes = "" }).IsValid);
+        Assert.True(validator.Validate(new DecisionRequest { Approve = false, Notes = null }).IsValid);
+        Assert.False(validator.Validate(new DecisionRequest { Approve = false, Notes = new string('a', 2001) }).IsValid);
     }
 
     [Fact]

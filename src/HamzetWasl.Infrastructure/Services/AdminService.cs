@@ -215,6 +215,14 @@ public sealed class AdminService : IAdminService
 
     public async Task DecideOrganizationReviewAsync(Guid reviewId, Guid reviewerId, DecisionRequest request, CancellationToken ct = default)
     {
+        if (!request.Approve && string.IsNullOrWhiteSpace(request.Notes))
+        {
+            throw AppException.Validation(new Dictionary<string, string[]>
+            {
+                ["notes"] = ["اذكر سبب الرفض في الملاحظات."]
+            });
+        }
+
         var now = _clock.UtcNow;
         var notes = string.IsNullOrWhiteSpace(request.Notes) ? null : request.Notes.Trim();
         var newStatus = request.Approve ? OrganizationReviewStatuses.Approved : OrganizationReviewStatuses.Rejected;
@@ -565,6 +573,16 @@ public sealed class AdminService : IAdminService
             foreach (var doc in account.Organization.OrganizationDocuments)
             {
                 if (!string.IsNullOrWhiteSpace(doc.StorageKey)) storageKeysToDelete.Add(doc.StorageKey);
+            }
+
+            if (!string.IsNullOrWhiteSpace(account.Organization.LogoStorageKey))
+            {
+                storageKeysToDelete.Add(account.Organization.LogoStorageKey);
+            }
+
+            if (!string.IsNullOrWhiteSpace(account.Organization.CoverStorageKey))
+            {
+                storageKeysToDelete.Add(account.Organization.CoverStorageKey);
             }
 
             await _db.OrganizationDocuments.Where(d => d.OrganizationId == account.Organization.OrganizationId).ExecuteDeleteAsync(ct);

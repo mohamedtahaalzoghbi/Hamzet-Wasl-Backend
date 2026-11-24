@@ -43,8 +43,13 @@ public sealed class OrganizationService : IOrganizationService
         }
 
         AreaDto? area = null;
-        if (!string.IsNullOrWhiteSpace(request.City) && governorate is not null)
+        if (!string.IsNullOrWhiteSpace(request.City))
         {
+            if (governorate is null)
+            {
+                throw AppException.Validation(new Dictionary<string, string[]> { ["governorate"] = ["يجب اختيار المحافظة أولاً."] });
+            }
+
             area = await _geo.FindAreaAsync(governorate, request.City, ct);
             if (area is null)
             {
@@ -283,7 +288,6 @@ public sealed class OrganizationService : IOrganizationService
         if (string.IsNullOrWhiteSpace(organization.Governorate)) missing.Add("governorate");
         if (string.IsNullOrWhiteSpace(organization.City)) missing.Add("city");
         if (string.IsNullOrWhiteSpace(organization.EmployeeCountRange)) missing.Add("employeeCountRange");
-        if (string.IsNullOrWhiteSpace(organization.ContactInformation)) missing.Add("contactInformation");
         if (string.IsNullOrWhiteSpace(organization.LogoStorageKey)) missing.Add("logo");
         return missing;
     }
