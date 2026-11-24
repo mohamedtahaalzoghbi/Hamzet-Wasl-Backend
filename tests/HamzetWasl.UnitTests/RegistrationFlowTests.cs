@@ -103,7 +103,8 @@ public sealed class RegistrationFlowTests : SqliteServiceTestBase
 
         var otp = new OtpService(OtpOpts, cache, Clock);
         var auth = new AuthService(Db, users, new FakeTokens(), otp, new FakeEmail(), sms,
-            google ?? new FakeGoogle(), cache, Clock, NullLogger<AuthService>.Instance);
+            google ?? new FakeGoogle(), cache, new MemoryPendingRegistrationStore(cache), Clock,
+            NullLogger<AuthService>.Instance);
         return (auth, users, sms);
     }
 
@@ -309,6 +310,45 @@ public sealed class RegistrationFlowTests : SqliteServiceTestBase
             RegistrationTicket = pending.RegistrationTicket
         });
         (await resend.Should().ThrowAsync<AppException>()).Which.Code.Should().Be(ErrorCodes.RegistrationExpired);
+    }
+
+    [Fact]
+    public async Task Concurrent_consumes_of_one_ticket_yield_exactly_one_success()
+    {
+        var store = new MemoryPendingRegistrationStore(
+            new MemoryDistributedCache(Options.Create(new MemoryDistributedCacheOptions())));
+        var pendingId = Guid.NewGuid();
+        var record = new PendingRegistrationRecord(
+            new PendingRegistration("password", RoleNames.Volunteer, "م", "a@b.com", "+2010", "hash", null, "1.0"),
+            "code-hash", Clock.UtcNow.AddMinutes(10), Clock.UtcNow);
+        await store.SaveAsync(pendingId, record, TimeSpan.FromMinutes(10));
+
+        var outcomes = await Task.WhenAll(Enumerable.Range(0, 20).Select(_ =>
+            store.ConsumeAsync(pendingId, "code-hash", 3, Clock.UtcNow)));
+
+        outcomes.Count(o => o.Status == PendingConsumeStatus.Success).Should().Be(1,
+            "the per-ticket lock serializes consumption");
+        outcomes.Count(o => o.Status == PendingConsumeStatus.TicketUnknown).Should().Be(19);
+    }
+
+    [Fact]
+    public async Task Concurrent_wrong_codes_cannot_exceed_the_attempt_limit()
+    {
+        var store = new MemoryPendingRegistrationStore(
+            new MemoryDistributedCache(Options.Create(new MemoryDistributedCacheOptions())));
+        var pendingId = Guid.NewGuid();
+        var record = new PendingRegistrationRecord(
+            new PendingRegistration("password", RoleNames.Volunteer, "م", "a@b.com", "+2010", "hash", null, "1.0"),
+            "code-hash", Clock.UtcNow.AddMinutes(10), Clock.UtcNow);
+        await store.SaveAsync(pendingId, record, TimeSpan.FromMinutes(10));
+
+        var outcomes = await Task.WhenAll(Enumerable.Range(0, 10).Select(_ =>
+            store.ConsumeAsync(pendingId, "wrong-hash", 3, Clock.UtcNow)));
+
+        outcomes.Count(o => o.Status == PendingConsumeStatus.Invalid).Should().Be(3,
+            "the counter cannot under-count under the lock");
+        outcomes.Count(o => o.Status == PendingConsumeStatus.TooManyAttempts).Should().Be(7);
+        (await store.GetAsync(pendingId)).Should().NotBeNull("failed attempts do not consume the ticket");
     }
 
     [Fact]

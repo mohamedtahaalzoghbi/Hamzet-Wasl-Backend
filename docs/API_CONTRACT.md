@@ -173,8 +173,11 @@ single-use: a successful complete consumes it.
 `POST /auth/register/resend` body `{ "registrationTicket": "…" }` → 204 with a fresh code.
 Failed: 422 `REGISTRATION_EXPIRED`, 429 `OTP_RESEND_TOO_SOON`. Resends renew the code but
 cannot keep a registration alive forever: the whole flow ends 30 minutes after the first
-code. If the API restarts while a registration is pending, the pending state is gone and
-the client registers again — no account was created, so nothing conflicts.
+code. With the in-memory cache an API restart drops the pending state; with Redis
+configured it survives restarts. Either way the client simply registers again — no account
+was created, so nothing conflicts. Ticket consumption is atomic: a per-ticket lock (Redis
+lock when Redis is configured, in-process lock otherwise) serializes code verification,
+attempt counting and ticket deletion.
 
 Google sign-up follows the same rule: a first-time Google user that supplies
 `role`/`phone`/`termsAccepted` gets `phoneVerificationRequired` (a `RegisterPending`)

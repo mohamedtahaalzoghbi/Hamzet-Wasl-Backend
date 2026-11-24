@@ -30,6 +30,7 @@ public sealed class AuthService : IAuthService
     private readonly ISmsSender _sms;
     private readonly IGoogleTokenValidator _google;
     private readonly IDistributedCache _cache;
+    private readonly IPendingRegistrationStore _pendingStore;
     private readonly IClock _clock;
     private readonly ILogger<AuthService> _logger;
 
@@ -54,6 +55,7 @@ public sealed class AuthService : IAuthService
         ISmsSender sms,
         IGoogleTokenValidator google,
         IDistributedCache cache,
+        IPendingRegistrationStore pendingStore,
         IClock clock,
         ILogger<AuthService> logger)
     {
@@ -65,6 +67,7 @@ public sealed class AuthService : IAuthService
         _sms = sms;
         _google = google;
         _cache = cache;
+        _pendingStore = pendingStore;
         _clock = clock;
         _logger = logger;
     }
@@ -143,38 +146,44 @@ public sealed class AuthService : IAuthService
     }
 
     /// <summary>
-    /// Step 2 of registration: verifies the phone OTP against the pending state and only
-    /// then creates the account, its profile/consent rows and the session.
+    /// Step 2 of registration: atomically verifies the phone OTP against the pending state
+    /// and consumes the ticket (per-ticket lock in the store), then creates the account,
+    /// its profile/consent rows and the session.
     /// </summary>
     public async Task<AuthResponse> CompleteRegistrationAsync(CompleteRegistrationRequest request, CancellationToken ct = default)
     {
-        var (pendingId, record) = await LoadPendingRegistrationAsync(request.RegistrationTicket, ct);
-        var purpose = RegisterPurpose(record.Pending.Phone);
-
-        if (record.ExpiresAt < _clock.UtcNow)
+        if (!Guid.TryParse(request.RegistrationTicket, out var pendingId))
         {
-            throw new AppException(422, ErrorCodes.OtpExpired);
+            throw new AppException(422, ErrorCodes.RegistrationExpired);
         }
 
-        var attempts = await _otp.GetAttemptsAsync(pendingId, purpose, ct);
-        if (attempts >= _otp.MaxAttempts)
+        // The presented code is hashed under the ticket's purpose; the store then decides
+        // atomically under a per-ticket lock: unknown ticket / expired code / too many
+        // attempts / wrong code (incrementing) / success (deleting the pending state).
+        var probe = await _pendingStore.GetAsync(pendingId, ct);
+        if (probe is null)
         {
-            throw new AppException(422, ErrorCodes.OtpTooManyAttempts);
+            throw new AppException(422, ErrorCodes.RegistrationExpired);
         }
 
-        if (!_otp.Verify(pendingId, purpose, request.Code, record.CodeHash))
+        var purpose = RegisterPurpose(probe.Pending.Phone);
+        var presentedHash = _otp.Hash(pendingId, purpose, request.Code);
+        var result = await _pendingStore.ConsumeAsync(pendingId, presentedHash, _otp.MaxAttempts, _clock.UtcNow, ct);
+
+        switch (result.Status)
         {
-            var used = await _otp.IncrementAttemptsAsync(pendingId, purpose, ct);
-            var left = Math.Max(0, _otp.MaxAttempts - used);
-            throw new AppException(422, ErrorCodes.OtpInvalid,
-                $"{ArabicMessages.For(ErrorCodes.OtpInvalid)} المحاولات المتبقية: {left}");
+            case PendingConsumeStatus.TicketUnknown:
+                throw new AppException(422, ErrorCodes.RegistrationExpired);
+            case PendingConsumeStatus.CodeExpired:
+                throw new AppException(422, ErrorCodes.OtpExpired);
+            case PendingConsumeStatus.TooManyAttempts:
+                throw new AppException(422, ErrorCodes.OtpTooManyAttempts);
+            case PendingConsumeStatus.Invalid:
+                throw new AppException(422, ErrorCodes.OtpInvalid,
+                    $"{ArabicMessages.For(ErrorCodes.OtpInvalid)} المحاولات المتبقية: {result.AttemptsLeft}");
         }
 
-        // Single-use: the pending record is dropped before anything is created, so the
-        // same ticket cannot create two accounts. The database unique constraints on
-        // email/phone backstop the small window between the load and this removal.
-        await _cache.RemoveAsync(PendingRegistrationKey(pendingId), ct);
-        await _otp.ResetAttemptsAsync(pendingId, purpose, ct);
+        var record = result.Record!;
 
         // Uniqueness is re-checked at creation time: another account may have taken the
         // email or the number while the code was on its way.
@@ -209,7 +218,17 @@ public sealed class AuthService : IAuthService
     /// <summary>Issues a fresh code for an existing pending registration.</summary>
     public async Task ResendRegistrationCodeAsync(ResendRegistrationCodeRequest request, CancellationToken ct = default)
     {
-        var (pendingId, record) = await LoadPendingRegistrationAsync(request.RegistrationTicket, ct);
+        if (!Guid.TryParse(request.RegistrationTicket, out var pendingId))
+        {
+            throw new AppException(422, ErrorCodes.RegistrationExpired);
+        }
+
+        var record = await _pendingStore.GetAsync(pendingId, ct);
+        if (record is null)
+        {
+            throw new AppException(422, ErrorCodes.RegistrationExpired);
+        }
+
         var purpose = RegisterPurpose(record.Pending.Phone);
         var now = _clock.UtcNow;
 
@@ -232,8 +251,7 @@ public sealed class AuthService : IAuthService
             CodeHash = _otp.Hash(pendingId, purpose, code),
             ExpiresAt = renewedUntil < lifetimeEnd ? renewedUntil : lifetimeEnd
         };
-        await _cache.SetStringAsync(PendingRegistrationKey(pendingId), JsonSerializer.Serialize(renewed),
-            PendingRegistrationOptions(), ct);
+        await _pendingStore.SaveAsync(pendingId, renewed, renewed.ExpiresAt - now, ct);
 
         await _sms.SendAsync(record.Pending.Phone, $"رمز التحقق الخاص بك في همزة وصل: {code}", ct);
         await _otp.MarkSentAsync(pendingId, purpose, ct);
@@ -590,33 +608,7 @@ public sealed class AuthService : IAuthService
         public const string Google = "google";
     }
 
-    /// <summary>
-    /// Short-lived pending registration state kept server-side in the distributed cache
-    /// until the phone OTP succeeds. It is temporary verification state, not an account
-    /// record: it expires with the code and is deleted on completion. The client ticket is
-    /// only the random id of this record and carries no personal data and no password.
-    /// </summary>
-    private sealed record PendingRegistration(
-        string Provider,
-        string Role,
-        string DisplayName,
-        string Email,
-        string Phone,
-        string? PasswordHash,
-        string? GoogleSubject,
-        string PolicyVersion);
-
-    private sealed record PendingRegistrationRecord(
-        PendingRegistration Pending, string CodeHash, DateTime ExpiresAt, DateTime FirstIssuedAt);
-
-    private static string PendingRegistrationKey(Guid pendingId) => $"reg:pending:{pendingId:N}";
-
     private static string RegisterPurpose(string phone) => $"register:{phone}";
-
-    private DistributedCacheEntryOptions PendingRegistrationOptions() => new()
-    {
-        AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(_otp.ExpiryMinutes)
-    };
 
     private async Task<RegisterPendingResponse> StartPendingRegistrationAsync(PendingRegistration pending, CancellationToken ct)
     {
@@ -632,34 +624,13 @@ public sealed class AuthService : IAuthService
         var now = _clock.UtcNow;
         var record = new PendingRegistrationRecord(
             pending, _otp.Hash(pendingId, purpose, code), now.AddMinutes(_otp.ExpiryMinutes), now);
-        await _cache.SetStringAsync(PendingRegistrationKey(pendingId), JsonSerializer.Serialize(record),
-            PendingRegistrationOptions(), ct);
+        await _pendingStore.SaveAsync(pendingId, record, TimeSpan.FromMinutes(_otp.ExpiryMinutes), ct);
 
         await _sms.SendAsync(pending.Phone, $"رمز التحقق الخاص بك في همزة وصل: {code}", ct);
         await _otp.MarkSentAsync(pendingId, purpose, ct);
         await MarkTargetCooldownAsync(pending.Phone, ct);
 
         return new RegisterPendingResponse(true, pendingId.ToString("N"), record.ExpiresAt, pending.Phone);
-    }
-
-    private async Task<(Guid PendingId, PendingRegistrationRecord Record)> LoadPendingRegistrationAsync(
-        string ticket, CancellationToken ct)
-    {
-        // An unknown, malformed or expired ticket all report the same way: the pending
-        // registration is gone and the client starts over.
-        if (!Guid.TryParse(ticket, out var pendingId))
-        {
-            throw new AppException(422, ErrorCodes.RegistrationExpired);
-        }
-
-        var json = await _cache.GetStringAsync(PendingRegistrationKey(pendingId), ct);
-        var record = json is null ? null : JsonSerializer.Deserialize<PendingRegistrationRecord>(json);
-        if (record is null)
-        {
-            throw new AppException(422, ErrorCodes.RegistrationExpired);
-        }
-
-        return (pendingId, record);
     }
 
     private async Task<AuthResponse> CreateAccountFromPendingAsync(PendingRegistration pending, CancellationToken ct)
