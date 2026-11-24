@@ -54,7 +54,7 @@ public class ReviewOrderingTests(ApiFixture fixture)
 
     private async Task<AuthResponse> RegisterAsync(string role, string name)
     {
-        var (status, data, error) = await Client.PostAsync<AuthResponse>("/api/v1/auth/register", new
+        return await Client.RegisterVerifiedAsync(fixture.Messages, new
         {
             role,
             name,
@@ -65,10 +65,6 @@ public class ReviewOrderingTests(ApiFixture fixture)
             termsAccepted = true,
             policyVersion = "1.0"
         });
-
-        Assert.Equal(201, status);
-        Assert.Null(error);
-        return data!;
     }
 
     private async Task<AuthResponse> AdminLoginAsync()

@@ -36,7 +36,7 @@ public class P0RemediationTests(ApiFixture fixture)
 
     private async Task<AuthResponse> RegisterAsync(string role, string name)
     {
-        var (status, data, error) = await Client.PostAsync<AuthResponse>("/api/v1/auth/register", new
+        return await Client.RegisterVerifiedAsync(fixture.Messages, new
         {
             role,
             name,
@@ -47,10 +47,6 @@ public class P0RemediationTests(ApiFixture fixture)
             termsAccepted = true,
             policyVersion = "1.0"
         });
-
-        Assert.Equal(201, status);
-        Assert.Null(error);
-        return data!;
     }
 
     // ---------------------------------------------------------------- C1
@@ -174,22 +170,19 @@ public class P0RemediationTests(ApiFixture fixture)
         // The organization decision publishes a notification for the owner.
         var email = Email("notify");
         var phone = Phone();
-        var (registerStatus, organization, registerError) = await Client.PostAsync<AuthResponse>(
-            "/api/v1/auth/register", new
-            {
-                role = "company",
-                organizationName = "Notify Company",
-                email,
-                phone,
-                password = "Passw0rd!",
-                confirmPassword = "Passw0rd!",
-                termsAccepted = true,
-                policyVersion = "1.0"
-            });
-        Assert.Equal(201, registerStatus);
-        Assert.Null(registerError);
+        var organization = await Client.RegisterVerifiedAsync(fixture.Messages, new
+        {
+            role = "company",
+            organizationName = "Notify Company",
+            email,
+            phone,
+            password = "Passw0rd!",
+            confirmPassword = "Passw0rd!",
+            termsAccepted = true,
+            policyVersion = "1.0"
+        });
 
-        var ownerClient = Authed(organization!.AccessToken);
+        var ownerClient = Authed(organization.AccessToken);
         await ownerClient.PutAsync<object>("/api/v1/me/organization", new
         {
             name = "Notify Company",

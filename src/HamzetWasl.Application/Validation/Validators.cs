@@ -52,6 +52,25 @@ public sealed class RegisterRequestValidator : AbstractValidator<RegisterRequest
     }
 }
 
+public sealed class CompleteRegistrationRequestValidator : AbstractValidator<CompleteRegistrationRequest>
+{
+    public CompleteRegistrationRequestValidator()
+    {
+        RuleFor(x => x.RegistrationTicket).NotEmpty().WithMessage("تذكرة التسجيل مطلوبة.");
+        RuleFor(x => x.Code)
+            .NotEmpty().WithMessage("رمز التحقق مطلوب.")
+            .Matches("^\\d{6}$").WithMessage("رمز التحقق مكوّن من ٦ أرقام.");
+    }
+}
+
+public sealed class ResendRegistrationCodeRequestValidator : AbstractValidator<ResendRegistrationCodeRequest>
+{
+    public ResendRegistrationCodeRequestValidator()
+    {
+        RuleFor(x => x.RegistrationTicket).NotEmpty().WithMessage("تذكرة التسجيل مطلوبة.");
+    }
+}
+
 public sealed class LoginRequestValidator : AbstractValidator<LoginRequest>
 {
     public LoginRequestValidator()

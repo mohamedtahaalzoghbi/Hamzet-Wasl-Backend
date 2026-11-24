@@ -41,7 +41,7 @@ public class Phase1GapTests(ApiFixture fixture)
 
     private async Task<AuthResponse> RegisterAsync(string role, string name)
     {
-        var (status, data, error) = await Client.PostAsync<AuthResponse>("/api/v1/auth/register", new
+        var data = await Client.RegisterVerifiedAsync(fixture.Messages, new
         {
             role,
             name,
@@ -53,9 +53,7 @@ public class Phase1GapTests(ApiFixture fixture)
             policyVersion = "1.0"
         });
 
-        Assert.Equal(201, status);
-        Assert.Null(error);
-        return data!;
+        return data;
     }
 
     private async Task<AuthResponse> AdminLoginAsync()

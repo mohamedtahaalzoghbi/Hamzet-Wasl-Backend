@@ -19,6 +19,27 @@ Published contract: `docs/openapi.json` (OpenAPI 3.0.4) and `docs/API_CONTRACT.m
 | Files | signed private file access |
 | Realtime | `/hubs/notifications` |
 
+### Staged registration (owner-approved breaking change, November 24, 2026)
+
+The Flutter integration reported that `/auth/register` created the account — and reserved
+the phone and email — before any OTP check, so an abandoned attempt blocked the next one
+with 409. The owner confirmed the required order: data → send phone OTP → verify → **only
+then create the account**.
+
+- `POST /auth/register` now returns `200 RegisterPending` (an opaque `registrationTicket`,
+  expiry and the normalized phone) instead of `201 Auth`. Nothing is written to the
+  database at this step; the pending state is a short-lived server-side cache record and
+  the ticket carries no personal data and no password (only a pre-computed password hash is
+  kept server-side).
+- New `POST /auth/register/complete` (`201 Auth`) and `POST /auth/register/resend` (`204`).
+  The ticket is single-use; unknown/consumed/expired tickets get 422 `REGISTRATION_EXPIRED`.
+- First-time Google sign-ups no longer create the account directly: they return
+  `phoneVerificationRequired` (`RegisterPending`) and finish through
+  `/auth/register/complete`, so phone ownership is proven there too. The completed Google
+  account starts with `emailVerified: true`.
+- This intentionally breaks the v1 register contract before the first client release, with
+  the client's developer in the loop; the Flutter client must move to the two-step flow.
+
 ### The P0 hardening round (before the first client integration)
 
 Security and contract fixes, all covered by regression tests:

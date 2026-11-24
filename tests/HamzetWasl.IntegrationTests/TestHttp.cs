@@ -2,6 +2,8 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using HamzetWasl.Application.Common;
+using HamzetWasl.Application.Contracts.Auth;
+using Xunit;
 
 namespace HamzetWasl.IntegrationTests;
 
@@ -72,6 +74,34 @@ public static class TestHttp
 
         var response = await client.PostAsync(path, content);
         return await ReadEnvelopeAsync<T>(response);
+    }
+
+    /// <summary>
+    /// Runs the staged registration flow end to end: POST /auth/register sends the phone
+    /// OTP (captured by <paramref name="messages"/>), POST /auth/register/complete creates
+    /// the account and returns the session. No account exists between the two calls.
+    /// </summary>
+    public static async Task<AuthResponse> RegisterVerifiedAsync(
+        this HttpClient client, CapturingMessageSender messages, object registerBody)
+    {
+        var (startStatus, pending, startError) =
+            await client.PostAsync<RegisterPendingResponse>("/api/v1/auth/register", registerBody);
+        Assert.Equal(200, startStatus);
+        Assert.Null(startError);
+        Assert.NotNull(pending);
+
+        var code = messages.LastCode;
+        Assert.NotNull(code);
+
+        var (status, data, error) = await client.PostAsync<AuthResponse>("/api/v1/auth/register/complete", new
+        {
+            registrationTicket = pending!.RegistrationTicket,
+            code
+        });
+        Assert.Equal(201, status);
+        Assert.Null(error);
+        Assert.NotNull(data);
+        return data!;
     }
 
     /// <summary>Reads the envelope but drains the response body even for attempts that are not JSON.</summary>

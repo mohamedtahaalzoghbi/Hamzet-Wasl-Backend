@@ -4,7 +4,9 @@ namespace HamzetWasl.Application.Interfaces;
 
 public interface IAuthService
 {
-    Task<AuthResponse> RegisterAsync(RegisterRequest request, CancellationToken ct = default);
+    Task<RegisterPendingResponse> RegisterAsync(RegisterRequest request, CancellationToken ct = default);
+    Task<AuthResponse> CompleteRegistrationAsync(CompleteRegistrationRequest request, CancellationToken ct = default);
+    Task ResendRegistrationCodeAsync(ResendRegistrationCodeRequest request, CancellationToken ct = default);
     Task<AuthResponse> LoginAsync(LoginRequest request, CancellationToken ct = default);
     Task<GoogleAuthResponse> GoogleAsync(GoogleAuthRequest request, CancellationToken ct = default);
     Task<AuthResponse> RefreshAsync(RefreshRequest request, CancellationToken ct = default);

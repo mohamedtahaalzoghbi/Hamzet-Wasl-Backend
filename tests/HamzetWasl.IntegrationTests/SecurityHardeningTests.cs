@@ -23,7 +23,7 @@ public class SecurityHardeningTests(ApiFixture fixture)
 
     private async Task<AuthResponse> RegisterAsync(string label)
     {
-        var (status, data, error) = await Client.PostAsync<AuthResponse>("/api/v1/auth/register", new
+        return await Client.RegisterVerifiedAsync(fixture.Messages, new
         {
             role = "disabled_user",
             name = "Security Tester",
@@ -34,10 +34,6 @@ public class SecurityHardeningTests(ApiFixture fixture)
             termsAccepted = true,
             policyVersion = "1.0"
         });
-
-        Assert.Equal(201, status);
-        Assert.Null(error);
-        return data!;
     }
 
     // ---------------------------------------------------------------- I2

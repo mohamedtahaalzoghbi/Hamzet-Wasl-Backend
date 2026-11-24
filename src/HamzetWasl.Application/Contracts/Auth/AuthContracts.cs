@@ -66,6 +66,29 @@ public sealed class VerifyCodeRequest
     public string Code { get; set; } = string.Empty;
 }
 
+public sealed class CompleteRegistrationRequest
+{
+    public string RegistrationTicket { get; set; } = string.Empty;
+    public string Code { get; set; } = string.Empty;
+}
+
+public sealed class ResendRegistrationCodeRequest
+{
+    public string RegistrationTicket { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// Returned by POST /auth/register instead of a session: no account row exists yet. The
+/// ticket is an opaque id for short-lived server-side pending state; it carries no personal
+/// data and no password. The account is created only by /auth/register/complete after the
+/// phone OTP succeeds.
+/// </summary>
+public sealed record RegisterPendingResponse(
+    bool RequiresPhoneVerification,
+    string RegistrationTicket,
+    DateTime ExpiresAt,
+    string Phone);
+
 public sealed class SendPhoneCodeRequest
 {
     public string Phone { get; set; } = string.Empty;
@@ -104,7 +127,8 @@ public sealed record GoogleRegistrationRequiredResponse(
 
 public sealed record GoogleAuthResponse(
     AuthResponse? Auth,
-    GoogleRegistrationRequiredResponse? RegistrationRequired)
+    GoogleRegistrationRequiredResponse? RegistrationRequired,
+    RegisterPendingResponse? PhoneVerificationRequired)
 {
     [JsonIgnore]
     public bool IsRegistrationRequired => RegistrationRequired is not null;

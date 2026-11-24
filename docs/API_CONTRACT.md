@@ -83,6 +83,7 @@ Only the codes the API really produces are listed.
 | `OTP_INVALID` | 400/422 | The code is wrong, or the password reset token is invalid |
 | `OTP_TOO_MANY_ATTEMPTS` | 422 | Too many wrong codes |
 | `OTP_RESEND_TOO_SOON` | 429 | Cooldown between two codes |
+| `REGISTRATION_EXPIRED` | 422 | The pending registration is unknown, consumed or expired — register again |
 | `GOOGLE_NOT_CONFIGURED` | 503 | Google client id is not configured |
 | `GOOGLE_TOKEN_INVALID` | 401 | Google id token rejected |
 | `VERIFICATION_INCOMPLETE` | 422 | Volunteer verification steps unfinished |
@@ -113,9 +114,11 @@ is rejected with 401, even if it is sent as a bearer token.
 
 | Method | Path | Auth | Description |
 |---|---|---|---|
-| POST | `/auth/register` | – | Public registration for the 4 public roles (201) |
+| POST | `/auth/register` | – | Start registration for the 4 public roles: validates the data and sends the phone OTP; **no account is created yet** (200 `RegisterPending`) |
+| POST | `/auth/register/complete` | – | `registrationTicket` + OTP code → creates the account and returns the session (201 `Auth`) |
+| POST | `/auth/register/resend` | – | New OTP code for a pending registration (204) |
 | POST | `/auth/login` | – | Email or phone + password (200) |
-| POST | `/auth/google` | – | Google ID token sign-in (200); a first-time user gets `registrationRequired` in the payload. The returned `registrationTicket` is verified when sent back at registration completion |
+| POST | `/auth/google` | – | Google ID token sign-in (200); a first-time user gets `registrationRequired` in the payload, and after supplying role/phone/terms gets `phoneVerificationRequired` — the account is created through `/auth/register/complete` like any other registration |
 | POST | `/auth/refresh` | – | Rotate refresh token → new pair (200) |
 | POST | `/auth/logout` | Bearer | Revoke the supplied refresh token (204) |
 | POST | `/auth/forgot-password` | – | Always 204 (never reveals existence) |
@@ -141,15 +144,46 @@ is rejected with 401, even if it is sent as a bearer token.
 }
 ```
 
-`201` → `Auth` (see `/auth/login`). Failed: 409 `EMAIL_ALREADY_EXISTS` / `PHONE_ALREADY_EXISTS`,
+`200` → `RegisterPending` (below). Failed: 409 `EMAIL_ALREADY_EXISTS` / `PHONE_ALREADY_EXISTS`,
 400 `VALIDATION_ERROR`.
+
+**Nothing is persisted at this step.** The phone, email and password do not reach the
+database before the phone ownership is proven. The pending state is a short-lived,
+server-side record (cache, expires with the code after 10 minutes); the returned
+`registrationTicket` is an opaque id for it and carries no personal data and no password.
+
+`RegisterPending` payload:
+
+```json
+{
+  "requiresPhoneVerification": true,
+  "registrationTicket": "…",
+  "expiresAt": "2026-01-15T10:40:00Z",
+  "phone": "+201012345678"
+}
+```
+
+`POST /auth/register/complete` body `{ "registrationTicket": "…", "code": "123456" }` →
+`201 Auth` (see `/auth/login`); the account is created with `phoneVerified: true`. Failed:
+422 `OTP_INVALID` (with remaining attempts), 422 `OTP_EXPIRED`, 422 `OTP_TOO_MANY_ATTEMPTS`,
+422 `REGISTRATION_EXPIRED` (unknown/used/expired ticket — start over), 409
+`EMAIL_ALREADY_EXISTS` / `PHONE_ALREADY_EXISTS` (re-checked at creation). The ticket is
+single-use: a successful complete consumes it.
+
+`POST /auth/register/resend` body `{ "registrationTicket": "…" }` → 204 with a fresh code.
+Failed: 422 `REGISTRATION_EXPIRED`, 429 `OTP_RESEND_TOO_SOON`.
+
+Google sign-up follows the same rule: a first-time Google user that supplies
+`role`/`phone`/`termsAccepted` gets `phoneVerificationRequired` (a `RegisterPending`)
+instead of a session, and finishes through `/auth/register/complete` like any other
+registration; the completed account starts with `emailVerified: true` (Google proved it).
 
 `POST /auth/login` body `{ "emailOrPhone": "user@example.com", "password": "Passw0rd!" }` →
 `200 Auth`. Failed: 401 `INVALID_CREDENTIALS` (unknown address, wrong password **or a locked
 account**) or 403 `ACCOUNT_SUSPENDED`. After five failed attempts the account is locked for
 15 minutes.
 
-`Auth` payload (both register and login):
+`Auth` payload (login and completed registration):
 
 ```json
 {

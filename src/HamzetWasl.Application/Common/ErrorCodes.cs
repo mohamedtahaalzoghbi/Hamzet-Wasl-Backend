@@ -18,6 +18,7 @@ public static class ErrorCodes
     public const string OtpInvalid = "OTP_INVALID";
     public const string OtpTooManyAttempts = "OTP_TOO_MANY_ATTEMPTS";
     public const string OtpResendTooSoon = "OTP_RESEND_TOO_SOON";
+    public const string RegistrationExpired = "REGISTRATION_EXPIRED";
     public const string GoogleNotConfigured = "GOOGLE_NOT_CONFIGURED";
     public const string GoogleTokenInvalid = "GOOGLE_TOKEN_INVALID";
     public const string GoogleTicketInvalid = "GOOGLE_TICKET_INVALID";
@@ -64,6 +65,7 @@ public static class ArabicMessages
             [ErrorCodes.OtpInvalid] = "الرمز غير صحيح، يُرجى المحاولة مرة أخرى.",
             [ErrorCodes.OtpTooManyAttempts] = "تم تجاوز عدد المحاولات المسموح. اطلب رمزاً جديداً.",
             [ErrorCodes.OtpResendTooSoon] = "انتظر قليلاً قبل طلب رمز جديد.",
+            [ErrorCodes.RegistrationExpired] = "انتهت صلاحية التسجيل. أعد التسجيل من جديد.",
             [ErrorCodes.GoogleNotConfigured] = "تسجيل الدخول بجوجل غير مُفعّل حالياً.",
             [ErrorCodes.GoogleTokenInvalid] = "تعذر التحقق من حساب جوجل.",
             [ErrorCodes.GoogleTicketInvalid] = "انتهت صلاحية جلسة التسجيل. ابدأ من جديد.",

@@ -44,7 +44,7 @@ public class GeoCatalogTests(ApiFixture fixture)
 
     private async Task<AuthResponse> RegisterAsync(string role, string name)
     {
-        var (status, data, error) = await Client.PostAsync<AuthResponse>("/api/v1/auth/register", new
+        return await Client.RegisterVerifiedAsync(fixture.Messages, new
         {
             role,
             name = role is "association" or "company" ? null : name,
@@ -56,10 +56,6 @@ public class GeoCatalogTests(ApiFixture fixture)
             termsAccepted = true,
             policyVersion = "1.0"
         });
-
-        Assert.Equal(201, status);
-        Assert.Null(error);
-        return data!;
     }
 
     private static bool HasField(ApiError error, string field) =>

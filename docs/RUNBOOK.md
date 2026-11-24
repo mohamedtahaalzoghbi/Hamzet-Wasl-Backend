@@ -189,7 +189,9 @@ The committed file must stay byte-comparable with the live document. CI (GitHub 
 
 Happy paths, in order, via Swagger (`Authorize` with the `accessToken`):
 
-1. `POST /api/v1/auth/register` (role `disabled_user`) → 201 + tokens.
+1. `POST /api/v1/auth/register` (role `disabled_user`) → 200 `RegisterPending`; read the code
+   from the SMS transport (the test sender or the provider log), then
+   `POST /api/v1/auth/register/complete` → 201 + tokens.
 2. `PUT /api/v1/me/profile` → 200; `GET` shows the change.
 3. `PUT /api/v1/me/accessibility` → 200; `GET` returns `effectivePreset`; `DELETE` then `GET` → 404.
 4. Register `volunteer`, `GET /api/v1/me/verification` → wizard steps.

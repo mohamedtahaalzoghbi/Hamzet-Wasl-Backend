@@ -41,15 +41,10 @@ public class Phase1FlowTests(ApiFixture fixture)
         return $"010{ticks:D8}";
     }
 
-    /// <summary>Registers a user and asserts the call succeeded.</summary>
+    /// <summary>Registers a user through the two-step OTP flow and asserts it succeeded.</summary>
     private async Task<AuthResponse> Register(string role, string name, string email, string phone)
     {
-        var (status, data, error) =
-            await Client.PostAsync<AuthResponse>("/api/v1/auth/register", RegisterBody(role, name, email, phone));
-        Assert.Equal(201, status);
-        Assert.Null(error);
-        Assert.NotNull(data);
-        return data!;
+        return await Client.RegisterVerifiedAsync(fixture.Messages, RegisterBody(role, name, email, phone));
     }
 
     /// <summary>Registers a user and asserts the call failed with the given status.</summary>
