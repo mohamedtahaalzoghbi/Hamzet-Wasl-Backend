@@ -67,8 +67,8 @@ Status of the Phase-1 delivery. Every box is backed by code and tests; the evide
 
 ## Stage 6 — Verification
 
-- [x] Unit tests for all application rules (98 tests)
-- [x] Integration tests for Phase 1 flows (9 tests, real SQL Server)
+- [x] Unit tests for all application rules (148 tests)
+- [x] Integration tests for Phase 1 flows (41 tests, real SQL Server)
 - [x] Authorization/ownership tests
 - [x] `dotnet build` clean (0 warnings, warnings-as-errors in CI); `dotnet test` green
 - [x] `docs/API_CONTRACT.md`, `docs/openapi.json`, `docs/ERD_TO_API_MAP.md`, `docs/RUNBOOK.md`,

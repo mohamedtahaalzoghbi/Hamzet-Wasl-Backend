@@ -90,6 +90,7 @@ sqlcmd -S "(localdb)\MSSQLLocalDB" -d HamzetWasl -i db\Hamzet_Wasl_Schema_v2.sql
 sqlcmd -S "(localdb)\MSSQLLocalDB" -d HamzetWasl -i db\migrations\Hamzet_Wasl_Migration_v2_1_review_created_at.sql
 sqlcmd -S "(localdb)\MSSQLLocalDB" -d HamzetWasl -i db\migrations\Hamzet_Wasl_Migration_v2_2_geo_tables.sql
 sqlcmd -S "(localdb)\MSSQLLocalDB" -d HamzetWasl -i db\migrations\Hamzet_Wasl_Migration_v2_3_open_review_index.sql
+sqlcmd -S "(localdb)\MSSQLLocalDB" -d HamzetWasl -i db\migrations\Hamzet_Wasl_Migration_v2_4_radius_100.sql
 ```
 
 كلها **idempotent** (تعمل بدون أخطاء إن طُبّقت مرتين) وتحتوي على rollback موثّق.

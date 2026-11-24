@@ -56,10 +56,16 @@ public static class DependencyInjection
                 options.Configuration = redis;
                 options.InstanceName = "HamzetWasl:";
             });
+            // Own multiplexer for the pending-registration lock; the cache keeps its
+            // internal connection.
+            services.AddSingleton<StackExchange.Redis.IConnectionMultiplexer>(_ =>
+                StackExchange.Redis.ConnectionMultiplexer.Connect(redis));
+            services.AddSingleton<IPendingRegistrationStore, RedisPendingRegistrationStore>();
         }
         else
         {
             services.AddDistributedMemoryCache();
+            services.AddSingleton<IPendingRegistrationStore, MemoryPendingRegistrationStore>();
         }
 
         services.AddMemoryCache();

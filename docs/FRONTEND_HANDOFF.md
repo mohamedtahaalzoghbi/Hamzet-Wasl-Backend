@@ -171,9 +171,10 @@ final data = (res.data as Map)['data'] as Map;
 </div>
 
 ```
-POST /api/v1/auth/register | /auth/login
-        → 200 { userId, role, accountStatus, email, emailVerified, phone, phoneVerified,
+POST /api/v1/auth/register           → 200 { requiresPhoneVerification, registrationTicket, expiresAt, phone }
+POST /api/v1/auth/register/complete  → 201 { userId, role, accountStatus, email, emailVerified, phone, phoneVerified,
                 displayName, accessToken, accessTokenExpiresAt, refreshToken, refreshTokenExpiresAt }
+POST /api/v1/auth/login              → 200 نفس حمولة التوكنات
 
 حفظ accessToken + refreshToken  →  إضافة Authorization: Bearer <accessToken> في كل طلب
 
@@ -272,7 +273,14 @@ Content-Type: application/json
   قيمة `admin` تُرفض بـ 400 على الحقل `role`.
 - حسابات الجمعيات والشركات ترسل `organizationName` بدلاً من `name`.
 - الهاتف يقبل `01xxxxxxxxx` ويُخزَّن E.164 (`+201012345678`).
-- التسجيل يعيد توكنات فوراً؛ التحقق من البريد/الهاتف خطوة لاحقة.
+- التسجيل على خطوتين: `/auth/register` يرسل رمز SMS ويرجّع `registrationTicket` مؤقتاً
+  (١٠ دقائق) **من غير ما يُحفظ أي حساب أو رقم أو بريد**؛ `/auth/register/complete`
+  بالتذكرة والرمز ينشئ الحساب ويرجّع التوكنات. `/auth/register/resend` يرسل رمزاً جديداً.
+  التذكرة تُستخدم مرة واحدة؛ عند انتهائها أعد التسجيل (`REGISTRATION_EXPIRED`).
+  التسجيل المعلّق ينتهي نهائياً بعد ٣٠ دقيقة مهما أعدت الإرسال. ولو الـAPI اتعمله restart
+  قبل إكمال التسجيل: مع Redis الحالة المؤقتة بتفضل موجودة وتكمّل عادي، ومن غير Redis بتضيع
+  — وفي الحالتين اعرض شاشة التسجيل من جديد لو وصلك `REGISTRATION_EXPIRED` (ما اتنشأش حساب،
+  فمفيش تعارض). التحقق من البريد يبقى خطوة لاحقة داخل الحساب.
 
 </div>
 

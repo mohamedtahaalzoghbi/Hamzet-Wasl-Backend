@@ -25,23 +25,17 @@ public class UploadLimitsTests(ApiFixture fixture)
         var email = $"{label}{Guid.NewGuid().ToString("N")[..8]}@example.com";
         var phone = "010" + (DateTime.UtcNow.Ticks % 100_000_000).ToString("D8");
 
-        var (status, data, error) = await fixture.AnonymousClient.PostAsync<AuthResponse>(
-            "/api/v1/auth/register", new
-            {
-                role = "disabled_user",
-                name = "Upload Tester",
-                email,
-                phone,
-                password = "Passw0rd!",
-                confirmPassword = "Passw0rd!",
-                termsAccepted = true,
-                policyVersion = "1.0"
-            });
-
-        Assert.Equal(201, status);
-        Assert.Null(error);
-        Assert.NotNull(data);
-        return data!;
+        return await fixture.AnonymousClient.RegisterVerifiedAsync(fixture.Messages, new
+        {
+            role = "disabled_user",
+            name = "Upload Tester",
+            email,
+            phone,
+            password = "Passw0rd!",
+            confirmPassword = "Passw0rd!",
+            termsAccepted = true,
+            policyVersion = "1.0"
+        });
     }
 
     private async Task<(int Status, string Body)> UploadAsync(HttpClient client, byte[] content)

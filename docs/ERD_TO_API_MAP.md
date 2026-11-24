@@ -63,8 +63,9 @@ Both tables are filled from `MetaCatalog` by `DatabaseSeeder` on the first run (
 | `ORGANIZATION_REVIEW` | CRUD | `POST /me/organization/submit`, `GET /me/organization/review-status`, admin queue + decision |
 | `ORGANIZATION_DOCUMENT` | CRUD | `PUT /me/organization/documents/{type}`; admin detail shows signed URLs |
 
-Business fields, employee ranges, governorates and areas are **not tables**: they are static
-catalogues validated against `MetaCatalog` and served by `/meta/*`.
+Business fields and employee ranges are **not tables**: they are static
+catalogues validated against `MetaCatalog` and served by `/meta/*`. Governorates and areas are
+database-backed in `GOVERNORATE` and `AREA` (see Reference data above).
 
 ## Admin / platform
 

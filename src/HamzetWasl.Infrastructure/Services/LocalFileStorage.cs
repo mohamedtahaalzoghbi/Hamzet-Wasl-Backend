@@ -79,15 +79,11 @@ public sealed class LocalFileStorage : IFileStorage
 
     public Task DeleteAsync(string key, CancellationToken ct = default)
     {
-        try
-        {
-            var path = GetPath(key);
-            if (File.Exists(path)) File.Delete(path);
-        }
-        catch (IOException)
-        {
-            // Deletion is best-effort; retention cleanup will retry.
-        }
+        // A missing file is already deleted, but a real failure must surface: the
+        // retention cleanup keeps the database row and retries instead of orphaning
+        // the file. Callers that treat deletion as best-effort catch the exception.
+        var path = GetPath(key);
+        if (File.Exists(path)) File.Delete(path);
 
         return Task.CompletedTask;
     }

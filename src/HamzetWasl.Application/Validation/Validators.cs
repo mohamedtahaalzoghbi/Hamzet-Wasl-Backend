@@ -52,6 +52,25 @@ public sealed class RegisterRequestValidator : AbstractValidator<RegisterRequest
     }
 }
 
+public sealed class CompleteRegistrationRequestValidator : AbstractValidator<CompleteRegistrationRequest>
+{
+    public CompleteRegistrationRequestValidator()
+    {
+        RuleFor(x => x.RegistrationTicket).NotEmpty().WithMessage("تذكرة التسجيل مطلوبة.");
+        RuleFor(x => x.Code)
+            .NotEmpty().WithMessage("رمز التحقق مطلوب.")
+            .Matches("^\\d{6}$").WithMessage("رمز التحقق مكوّن من ٦ أرقام.");
+    }
+}
+
+public sealed class ResendRegistrationCodeRequestValidator : AbstractValidator<ResendRegistrationCodeRequest>
+{
+    public ResendRegistrationCodeRequestValidator()
+    {
+        RuleFor(x => x.RegistrationTicket).NotEmpty().WithMessage("تذكرة التسجيل مطلوبة.");
+    }
+}
+
 public sealed class LoginRequestValidator : AbstractValidator<LoginRequest>
 {
     public LoginRequestValidator()
@@ -233,8 +252,8 @@ public sealed class VolunteerLocationRequestValidator : AbstractValidator<Volunt
             .WithMessage("خط العرض غير صحيح.");
         RuleFor(x => x.Longitude).InclusiveBetween(-180m, 180m).When(x => x.Longitude.HasValue)
             .WithMessage("خط الطول غير صحيح.");
-        RuleFor(x => x.ServiceRadiusKm).InclusiveBetween(1, 200).When(x => x.ServiceRadiusKm.HasValue)
-            .WithMessage("نطاق المسافة يجب أن يكون بين ١ و٢٠٠ كم.");
+        RuleFor(x => x.ServiceRadiusKm).InclusiveBetween(1, 100).When(x => x.ServiceRadiusKm.HasValue)
+            .WithMessage("نطاق المسافة يجب أن يكون بين ١ و١٠٠ كم.");
     }
 }
 
@@ -345,9 +364,6 @@ public sealed class DecisionRequestValidator : AbstractValidator<DecisionRequest
     public DecisionRequestValidator()
     {
         RuleFor(x => x.Notes).MaximumLength(2000).WithMessage("الملاحظات طويلة جدًا.");
-        RuleFor(x => x)
-            .Must(x => x.Approve || !string.IsNullOrWhiteSpace(x.Notes))
-            .WithMessage("اذكر سبب الرفض في الملاحظات.");
     }
 }
 
@@ -356,7 +372,7 @@ public sealed class CreateInterviewSlotRequestValidator : AbstractValidator<Crea
     public CreateInterviewSlotRequestValidator()
     {
         RuleFor(x => x.StartsAt).NotEmpty().WithMessage("وقت الموعد مطلوب.")
-            .GreaterThan(DateTime.UtcNow.AddMinutes(-2))
+            .GreaterThan(_ => DateTime.UtcNow.AddMinutes(-2))
             .WithMessage("وقت الموعد يجب أن يكون في المستقبل.");
         RuleFor(x => x.DurationMinutes).InclusiveBetween(15, 120).WithMessage("مدة المقابلة يجب أن تكون بين ١٥ و١٢٠ دقيقة.");
     }

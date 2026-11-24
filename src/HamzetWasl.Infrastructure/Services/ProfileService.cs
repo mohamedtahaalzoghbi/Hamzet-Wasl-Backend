@@ -85,9 +85,18 @@ public sealed class ProfileService : IProfileService
         profile.AvatarStorageKey = stored.Key;
         await _db.SaveChangesAsync(ct);
 
+        // Removing the replaced avatar is best-effort: the profile already points at
+        // the new file, and a storage failure must not fail the upload.
         if (!string.IsNullOrWhiteSpace(oldKey))
         {
-            await _storage.DeleteAsync(oldKey, ct);
+            try
+            {
+                await _storage.DeleteAsync(oldKey, ct);
+            }
+            catch (Exception)
+            {
+                // Leftover replaced file; bounded to this failure.
+            }
         }
 
         return _storage.GetPublicUrl(stored.Key);

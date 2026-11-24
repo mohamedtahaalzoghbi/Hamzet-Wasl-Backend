@@ -19,6 +19,27 @@ Published contract: `docs/openapi.json` (OpenAPI 3.0.4) and `docs/API_CONTRACT.m
 | Files | signed private file access |
 | Realtime | `/hubs/notifications` |
 
+### Staged registration (owner-approved breaking change, November 24, 2026)
+
+The Flutter integration reported that `/auth/register` created the account — and reserved
+the phone and email — before any OTP check, so an abandoned attempt blocked the next one
+with 409. The owner confirmed the required order: data → send phone OTP → verify → **only
+then create the account**.
+
+- `POST /auth/register` now returns `200 RegisterPending` (an opaque `registrationTicket`,
+  expiry and the normalized phone) instead of `201 Auth`. Nothing is written to the
+  database at this step; the pending state is a short-lived server-side cache record and
+  the ticket carries no personal data and no password (only a pre-computed password hash is
+  kept server-side).
+- New `POST /auth/register/complete` (`201 Auth`) and `POST /auth/register/resend` (`204`).
+  The ticket is single-use; unknown/consumed/expired tickets get 422 `REGISTRATION_EXPIRED`.
+- First-time Google sign-ups no longer create the account directly: they return
+  `phoneVerificationRequired` (`RegisterPending`) and finish through
+  `/auth/register/complete`, so phone ownership is proven there too. The completed Google
+  account starts with `emailVerified: true`.
+- This intentionally breaks the v1 register contract before the first client release, with
+  the client's developer in the loop; the Flutter client must move to the two-step flow.
+
 ### The P0 hardening round (before the first client integration)
 
 Security and contract fixes, all covered by regression tests:
@@ -201,6 +222,29 @@ The two migration scripts failed on a database that really needed them, so they 
   automatically when their objects are missing, so a stale database no longer blocks the
   one-click start.
 
+### Design alignment and consistency round (November 24, 2026)
+
+No contract change: every request/response field and status code is unchanged.
+
+- `serviceRadiusKm` is now **1–100 km** (was 1–200), matching the Figma location screen
+  ("up to 100 km"). Recorded as `docs/DEVIATIONS.md` #24; existing databases apply
+  `db/migrations/Hamzet_Wasl_Migration_v2_4_radius_100.sql`.
+- Evidence retention: a file whose delete fails keeps its database row and is retried on
+  the next run instead of being orphaned on disk (`EvidenceRetentionCleanupService`);
+  `LocalFileStorage.DeleteAsync` now surfaces real IO failures so the retry can happen.
+- The admin volunteer/organization decisions wrap the conditional update, the profile or
+  organization update and the audit in **one transaction**, so a mid-way failure can no
+  longer leave a decided review with a stale profile.
+- Account anonymisation (`ResolveDeletionRequestAsync` approve path) runs in **one
+  transaction**; the file deletions happen after the commit and are best-effort.
+- Evidence replacement (`UploadEvidenceAsync`) swaps the rows in **one transaction** and
+  removes the newly stored file again if the swap fails.
+- The Google `registrationTicket` is now **verified** when a client sends it back during
+  registration completion (same email and Google subject as the ID token); it was issued
+  but never checked before. Clients that re-send only the ID token are unaffected.
+- Replacing an organization document removes the old file only after the row points at
+  the new one, and the old-file deletes of avatar/logo/cover replacement are best-effort.
+
 ### Earlier changes inside v1
 
 - `POST /me/verification/evidence` (was documented as `PUT`): the evidence type is part of the
@@ -209,4 +253,5 @@ The two migration scripts failed on a database that really needed them, so they 
 - Availability slots are validated as future, ordered and non-overlapping.
 - Interview slots must start in the future; duration stays 15–120 minutes.
 - Volunteer `weeklyHours` is validated as 1–168.
-- `serviceRadiusKm` is optional (the schema allows `NULL`); when present it must be 1–200.
+- `serviceRadiusKm` is optional (the schema allows `NULL`); when present it must be 1–100 km
+  (1–200 before the design alignment round above).

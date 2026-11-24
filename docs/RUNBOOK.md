@@ -82,7 +82,7 @@ powershell -ExecutionPolicy Bypass -File .\tools\start-api.ps1        # build + 
 powershell -ExecutionPolicy Bypass -File .\tools\start-api.ps1 -Stop  # stop it
 ```
 
-`tools\start-api.ps1` builds the project, applies the three migration scripts from
+`tools\start-api.ps1` builds the project, applies the four migration scripts from
 `db/migrations/` when the local database misses their objects (they are idempotent), starts
 the API in the background on `http://localhost:5153` and opens the Swagger UI.
 `tools\create-shortcuts.ps1` writes the **Hamzet Wasl API** shortcuts to the desktop
@@ -94,9 +94,10 @@ and to the project folder.
 sqlcmd -S "(localdb)\MSSQLLocalDB" -d HamzetWasl -i db\migrations\Hamzet_Wasl_Migration_v2_1_review_created_at.sql
 sqlcmd -S "(localdb)\MSSQLLocalDB" -d HamzetWasl -i db\migrations\Hamzet_Wasl_Migration_v2_2_geo_tables.sql
 sqlcmd -S "(localdb)\MSSQLLocalDB" -d HamzetWasl -i db\migrations\Hamzet_Wasl_Migration_v2_3_open_review_index.sql
+sqlcmd -S "(localdb)\MSSQLLocalDB" -d HamzetWasl -i db\migrations\Hamzet_Wasl_Migration_v2_4_radius_100.sql
 ```
 
-All three scripts are idempotent and set `QUOTED_IDENTIFIER ON` themselves: `sqlcmd` runs with
+All four scripts are idempotent and set `QUOTED_IDENTIFIER ON` themselves: `sqlcmd` runs with
 `QUOTED_IDENTIFIER OFF` by default, and `VERIFICATION_REVIEW` carries a filtered index, so
 any write on that table fails with error 1934 otherwise.
 
@@ -188,7 +189,9 @@ The committed file must stay byte-comparable with the live document. CI (GitHub 
 
 Happy paths, in order, via Swagger (`Authorize` with the `accessToken`):
 
-1. `POST /api/v1/auth/register` (role `disabled_user`) → 201 + tokens.
+1. `POST /api/v1/auth/register` (role `disabled_user`) → 200 `RegisterPending`; read the code
+   from the SMS transport (the test sender or the provider log), then
+   `POST /api/v1/auth/register/complete` → 201 + tokens.
 2. `PUT /api/v1/me/profile` → 200; `GET` shows the change.
 3. `PUT /api/v1/me/accessibility` → 200; `GET` returns `effectivePreset`; `DELETE` then `GET` → 404.
 4. Register `volunteer`, `GET /api/v1/me/verification` → wizard steps.

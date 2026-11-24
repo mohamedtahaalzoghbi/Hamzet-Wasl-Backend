@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using System.Text.Json;
 using HamzetWasl.Application.Common;
 using HamzetWasl.Application.Contracts.Auth;
 using HamzetWasl.Application.Interfaces;
@@ -29,6 +30,7 @@ public sealed class AuthService : IAuthService
     private readonly ISmsSender _sms;
     private readonly IGoogleTokenValidator _google;
     private readonly IDistributedCache _cache;
+    private readonly IPendingRegistrationStore _pendingStore;
     private readonly IClock _clock;
     private readonly ILogger<AuthService> _logger;
 
@@ -53,6 +55,7 @@ public sealed class AuthService : IAuthService
         ISmsSender sms,
         IGoogleTokenValidator google,
         IDistributedCache cache,
+        IPendingRegistrationStore pendingStore,
         IClock clock,
         ILogger<AuthService> logger)
     {
@@ -64,11 +67,20 @@ public sealed class AuthService : IAuthService
         _sms = sms;
         _google = google;
         _cache = cache;
+        _pendingStore = pendingStore;
         _clock = clock;
         _logger = logger;
     }
 
-    public async Task<AuthResponse> RegisterAsync(RegisterRequest request, CancellationToken ct = default)
+    /// <summary>
+    /// Step 1 of registration: validates the input and sends the phone OTP. Nothing is
+    /// written to the database here - the account is created only by
+    /// <see cref="CompleteRegistrationAsync"/> after the phone ownership is proven, per the
+    /// product requirement (data -> OTP -> verify -> create). The pending state is a
+    /// short-lived server-side cache record; the ticket returned to the client is an opaque
+    /// id that carries no personal data and no password.
+    /// </summary>
+    public async Task<RegisterPendingResponse> RegisterAsync(RegisterRequest request, CancellationToken ct = default)
     {
         var email = request.Email.Trim().ToLowerInvariant();
         var phone = PhoneNumberNormalizer.TryNormalize(request.Phone)
@@ -89,11 +101,6 @@ public sealed class AuthService : IAuthService
             throw AppException.Conflict(ErrorCodes.PhoneAlreadyExists);
         }
 
-        var role = await _db.AccountRoles.SingleOrDefaultAsync(r => r.RoleName == request.Role, ct)
-                   ?? throw new AppException(500, ErrorCodes.InternalError, "تعذر تحميل نوع الحساب.");
-
-        var now = _clock.UtcNow;
-        var userId = Guid.NewGuid();
         var isOrganization = RoleNames.IsOrganization(request.Role);
         var displayName = isOrganization
             ? request.OrganizationName?.Trim()
@@ -107,85 +114,148 @@ public sealed class AuthService : IAuthService
             });
         }
 
-        await using var transaction = await _db.Database.BeginTransactionAsync(ct);
-
-        var account = new UserAccount
+        // The password policy runs now, while the plaintext is still available; only the
+        // Identity hash is kept in the pending record, never the plaintext.
+        var probe = new AppUser
         {
-            UserId = userId,
-            RoleId = role.RoleId,
-            Email = email,
-            EmailVerified = false,
-            Phone = phone,
-            PhoneVerified = false,
-            AccountStatus = isOrganization ? AccountStatuses.PendingApproval : AccountStatuses.Active,
-            CreatedAt = now
-        };
-        _db.UserAccounts.Add(account);
-
-        _db.UserProfiles.Add(new UserProfile
-        {
-            UserId = userId,
-            DisplayName = displayName,
-            Visibility = ProfileVisibilities.Public
-        });
-
-        _db.ConsentRecords.Add(new ConsentRecord
-        {
-            ConsentId = Guid.NewGuid(),
-            UserId = userId,
-            Purpose = ConsentPurposes.Terms,
-            PolicyVersion = string.IsNullOrWhiteSpace(request.PolicyVersion) ? "1.0" : request.PolicyVersion.Trim(),
-            GrantedAt = now
-        });
-
-        if (request.Role == RoleNames.Volunteer)
-        {
-            _db.VolunteerProfiles.Add(new VolunteerProfile
-            {
-                UserId = userId,
-                HelpMode = HelpModes.OnlineOnly,
-                ServiceArea = string.Empty,
-                SkillLevel = SkillLevels.Beginner,
-                WeeklyHours = 1,
-                VerificationStatus = VerificationStatuses.Unverified
-            });
-        }
-
-        if (isOrganization)
-        {
-            _db.Organizations.Add(new Organization
-            {
-                OrganizationId = Guid.NewGuid(),
-                OwnerUserId = userId,
-                OrganizationType = request.Role,
-                Name = displayName,
-                ApprovalStatus = OrganizationApprovalStatuses.Pending
-            });
-        }
-
-        await _db.SaveChangesAsync(ct);
-
-        var appUser = new AppUser
-        {
-            Id = userId,
+            Id = Guid.NewGuid(),
             UserName = email,
             Email = email,
-            EmailConfirmed = false,
-            PhoneNumber = phone,
-            PhoneNumberConfirmed = false,
-            UserAccount = account
+            SecurityStamp = Guid.NewGuid().ToString()
         };
-
-        var createResult = await _users.CreateAsync(appUser, request.Password);
-        if (!createResult.Succeeded)
+        foreach (var validator in _users.PasswordValidators)
         {
-            await transaction.RollbackAsync(ct);
-            throw ToValidationException(createResult);
+            var passwordResult = await validator.ValidateAsync(_users, probe, request.Password);
+            if (!passwordResult.Succeeded)
+            {
+                throw ToValidationException(passwordResult);
+            }
         }
 
-        var response = await CreateSessionAsync(account, request.Role, displayName, null, ct);
-        await transaction.CommitAsync(ct);
-        return response;
+        var pending = new PendingRegistration(
+            Provider: PendingRegistrationProviders.Password,
+            Role: request.Role,
+            DisplayName: displayName,
+            Email: email,
+            Phone: phone,
+            PasswordHash: _users.PasswordHasher.HashPassword(probe, request.Password),
+            GoogleSubject: null,
+            PolicyVersion: string.IsNullOrWhiteSpace(request.PolicyVersion) ? "1.0" : request.PolicyVersion.Trim());
+
+        return await StartPendingRegistrationAsync(pending, ct);
+    }
+
+    /// <summary>
+    /// Step 2 of registration: atomically verifies the phone OTP against the pending state
+    /// and consumes the ticket (per-ticket lock in the store), then creates the account,
+    /// its profile/consent rows and the session.
+    /// </summary>
+    public async Task<AuthResponse> CompleteRegistrationAsync(CompleteRegistrationRequest request, CancellationToken ct = default)
+    {
+        if (!Guid.TryParse(request.RegistrationTicket, out var pendingId))
+        {
+            throw new AppException(422, ErrorCodes.RegistrationExpired);
+        }
+
+        // The presented code is hashed under the ticket's purpose; the store then decides
+        // atomically under a per-ticket lock: unknown ticket / expired code / too many
+        // attempts / wrong code (incrementing) / success (deleting the pending state).
+        var probe = await _pendingStore.GetAsync(pendingId, ct);
+        if (probe is null)
+        {
+            throw new AppException(422, ErrorCodes.RegistrationExpired);
+        }
+
+        var purpose = RegisterPurpose(probe.Pending.Phone);
+        var presentedHash = _otp.Hash(pendingId, purpose, request.Code);
+        var result = await _pendingStore.ConsumeAsync(pendingId, presentedHash, _otp.MaxAttempts, _clock.UtcNow, ct);
+
+        switch (result.Status)
+        {
+            case PendingConsumeStatus.TicketUnknown:
+                throw new AppException(422, ErrorCodes.RegistrationExpired);
+            case PendingConsumeStatus.CodeExpired:
+                throw new AppException(422, ErrorCodes.OtpExpired);
+            case PendingConsumeStatus.TooManyAttempts:
+                throw new AppException(422, ErrorCodes.OtpTooManyAttempts);
+            case PendingConsumeStatus.Invalid:
+                throw new AppException(422, ErrorCodes.OtpInvalid,
+                    $"{ArabicMessages.For(ErrorCodes.OtpInvalid)} المحاولات المتبقية: {result.AttemptsLeft}");
+        }
+
+        var record = result.Record!;
+
+        // Uniqueness is re-checked at creation time: another account may have taken the
+        // email or the number while the code was on its way.
+        if (await _db.UserAccounts.AnyAsync(a => a.Email == record.Pending.Email, ct))
+        {
+            throw AppException.Conflict(ErrorCodes.EmailAlreadyExists);
+        }
+
+        if (await _db.UserAccounts.AnyAsync(a => a.Phone == record.Pending.Phone, ct))
+        {
+            throw AppException.Conflict(ErrorCodes.PhoneAlreadyExists);
+        }
+
+        try
+        {
+            return await CreateAccountFromPendingAsync(record.Pending, ct);
+        }
+        catch (DbUpdateException ex) when (IsUniqueViolation(ex))
+        {
+            // The race the re-check cannot close: the email or phone was taken between
+            // the check and the insert - including a concurrent complete of the same
+            // ticket. The unique constraints make one winner; the loser gets a clean 409.
+            throw AppException.Conflict(ErrorCodes.Conflict);
+        }
+    }
+
+    private static bool IsUniqueViolation(DbUpdateException ex) =>
+        ex.ToString().Contains("UQ_USER_ACCOUNT", StringComparison.OrdinalIgnoreCase) ||
+        ex.ToString().Contains("UX_USER_ACCOUNT", StringComparison.OrdinalIgnoreCase) ||
+        ex.ToString().Contains("UNIQUE constraint", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>Issues a fresh code for an existing pending registration.</summary>
+    public async Task ResendRegistrationCodeAsync(ResendRegistrationCodeRequest request, CancellationToken ct = default)
+    {
+        if (!Guid.TryParse(request.RegistrationTicket, out var pendingId))
+        {
+            throw new AppException(422, ErrorCodes.RegistrationExpired);
+        }
+
+        var record = await _pendingStore.GetAsync(pendingId, ct);
+        if (record is null)
+        {
+            throw new AppException(422, ErrorCodes.RegistrationExpired);
+        }
+
+        var purpose = RegisterPurpose(record.Pending.Phone);
+        var now = _clock.UtcNow;
+
+        // Resends renew the code but cannot keep a pending registration alive forever:
+        // the whole flow is bounded to three code lifetimes from the first issue.
+        var maxLifetime = TimeSpan.FromMinutes(_otp.ExpiryMinutes * 3);
+        if (now - record.FirstIssuedAt >= maxLifetime)
+        {
+            throw new AppException(422, ErrorCodes.RegistrationExpired);
+        }
+
+        await EnsureTargetCooldownAsync(record.Pending.Phone, ct);
+        await _otp.EnsureCanSendAsync(pendingId, purpose, ct);
+
+        var code = _otp.GenerateCode();
+        var renewedUntil = now.AddMinutes(_otp.ExpiryMinutes);
+        var lifetimeEnd = record.FirstIssuedAt.Add(maxLifetime);
+        var renewed = record with
+        {
+            CodeHash = _otp.Hash(pendingId, purpose, code),
+            ExpiresAt = renewedUntil < lifetimeEnd ? renewedUntil : lifetimeEnd
+        };
+        await _pendingStore.SaveAsync(pendingId, renewed, renewed.ExpiresAt - now, ct);
+
+        await _sms.SendAsync(record.Pending.Phone, $"رمز التحقق الخاص بك في همزة وصل: {code}", ct);
+        await _otp.MarkSentAsync(pendingId, purpose, ct);
+        await MarkTargetCooldownAsync(record.Pending.Phone, ct);
     }
 
     public async Task<AuthResponse> LoginAsync(LoginRequest request, CancellationToken ct = default)
@@ -258,14 +328,28 @@ public sealed class AuthService : IAuthService
 
             var existingDisplayName = await GetDisplayNameAsync(existing.UserId, ct);
             var existingAuth = await CreateSessionAsync(existing, existing.Role.RoleName, existingDisplayName, null, ct);
-            return new GoogleAuthResponse(existingAuth, null);
+            return new GoogleAuthResponse(existingAuth, null, null);
         }
 
         if (string.IsNullOrWhiteSpace(request.Role) || string.IsNullOrWhiteSpace(request.Phone) || !request.TermsAccepted)
         {
             var ticket = _tokens.CreateGoogleRegistrationTicket(email, googleUser.Name, googleUser.Subject);
             return new GoogleAuthResponse(null, new GoogleRegistrationRequiredResponse(
-                true, ticket, email, googleUser.Name, RoleNames.PublicRegistration.ToArray()));
+                true, ticket, email, googleUser.Name, RoleNames.PublicRegistration.ToArray()), null);
+        }
+
+        // The registration ticket issued by the first pass is verified when the client
+        // sends it back: it must be valid and bound to the same Google identity as the
+        // ID token in this request. Clients that re-send only the ID token keep working.
+        if (!string.IsNullOrWhiteSpace(request.RegistrationTicket))
+        {
+            var ticket = _tokens.ValidateGoogleRegistrationTicket(request.RegistrationTicket);
+            if (ticket is null
+                || !string.Equals(ticket.Email, email, StringComparison.OrdinalIgnoreCase)
+                || !string.Equals(ticket.GoogleSubject, googleUser.Subject, StringComparison.Ordinal))
+            {
+                throw new AppException(401, ErrorCodes.GoogleTokenInvalid);
+            }
         }
 
         if (!RoleNames.PublicRegistration.Contains(request.Role))
@@ -281,91 +365,23 @@ public sealed class AuthService : IAuthService
             throw AppException.Conflict(ErrorCodes.PhoneAlreadyExists);
         }
 
-        var role = await _db.AccountRoles.SingleOrDefaultAsync(r => r.RoleName == request.Role, ct)
-                   ?? throw new AppException(500, ErrorCodes.InternalError);
-
-        var now = _clock.UtcNow;
-        var userId = Guid.NewGuid();
-        var isOrganization = RoleNames.IsOrganization(request.Role);
         var displayName = string.IsNullOrWhiteSpace(googleUser.Name) ? email : googleUser.Name!;
 
-        await using var transaction = await _db.Database.BeginTransactionAsync(ct);
+        // New Google accounts follow the same rule as password registration: no account
+        // row exists until phone ownership is proven by OTP. The email is already verified
+        // by Google, so the completed account starts with EmailVerified = true.
+        var pending = new PendingRegistration(
+            Provider: PendingRegistrationProviders.Google,
+            Role: request.Role,
+            DisplayName: displayName,
+            Email: email,
+            Phone: phone,
+            PasswordHash: null,
+            GoogleSubject: googleUser.Subject,
+            PolicyVersion: string.IsNullOrWhiteSpace(request.PolicyVersion) ? "1.0" : request.PolicyVersion.Trim());
 
-        var account = new UserAccount
-        {
-            UserId = userId,
-            RoleId = role.RoleId,
-            Email = email,
-            EmailVerified = true,
-            Phone = phone,
-            PhoneVerified = false,
-            AccountStatus = isOrganization ? AccountStatuses.PendingApproval : AccountStatuses.Active,
-            CreatedAt = now
-        };
-        _db.UserAccounts.Add(account);
-        _db.UserProfiles.Add(new UserProfile
-        {
-            UserId = userId,
-            DisplayName = displayName,
-            Visibility = ProfileVisibilities.Public
-        });
-        _db.ConsentRecords.Add(new ConsentRecord
-        {
-            ConsentId = Guid.NewGuid(),
-            UserId = userId,
-            Purpose = ConsentPurposes.Terms,
-            PolicyVersion = string.IsNullOrWhiteSpace(request.PolicyVersion) ? "1.0" : request.PolicyVersion.Trim(),
-            GrantedAt = now
-        });
-
-        if (request.Role == RoleNames.Volunteer)
-        {
-            _db.VolunteerProfiles.Add(new VolunteerProfile
-            {
-                UserId = userId,
-                HelpMode = HelpModes.OnlineOnly,
-                ServiceArea = string.Empty,
-                SkillLevel = SkillLevels.Beginner,
-                WeeklyHours = 1,
-                VerificationStatus = VerificationStatuses.Unverified
-            });
-        }
-
-        if (isOrganization)
-        {
-            _db.Organizations.Add(new Organization
-            {
-                OrganizationId = Guid.NewGuid(),
-                OwnerUserId = userId,
-                OrganizationType = request.Role,
-                Name = displayName,
-                ApprovalStatus = OrganizationApprovalStatuses.Pending
-            });
-        }
-
-        await _db.SaveChangesAsync(ct);
-
-        var appUser = new AppUser
-        {
-            Id = userId,
-            UserName = email,
-            Email = email,
-            EmailConfirmed = true,
-            PhoneNumber = phone,
-            PhoneNumberConfirmed = false,
-            UserAccount = account
-        };
-
-        var createResult = await _users.CreateAsync(appUser);
-        if (!createResult.Succeeded)
-        {
-            await transaction.RollbackAsync(ct);
-            throw ToValidationException(createResult);
-        }
-
-        var auth = await CreateSessionAsync(account, request.Role, displayName, null, ct);
-        await transaction.CommitAsync(ct);
-        return new GoogleAuthResponse(auth, null);
+        var pendingResponse = await StartPendingRegistrationAsync(pending, ct);
+        return new GoogleAuthResponse(null, null, pendingResponse);
     }
 
     public async Task<AuthResponse> RefreshAsync(RefreshRequest request, CancellationToken ct = default)
@@ -586,6 +602,135 @@ public sealed class AuthService : IAuthService
 
     private static string PendingPhoneKey(Guid userId) => $"phone:pending:{userId:N}";
 
+    private static class PendingRegistrationProviders
+    {
+        public const string Password = "password";
+        public const string Google = "google";
+    }
+
+    private static string RegisterPurpose(string phone) => $"register:{phone}";
+
+    private async Task<RegisterPendingResponse> StartPendingRegistrationAsync(PendingRegistration pending, CancellationToken ct)
+    {
+        var pendingId = Guid.NewGuid();
+        var purpose = RegisterPurpose(pending.Phone);
+
+        // The same flood guards as the post-registration phone endpoint: one code per
+        // target number per minute and a per-pending resend cooldown.
+        await EnsureTargetCooldownAsync(pending.Phone, ct);
+        await _otp.EnsureCanSendAsync(pendingId, purpose, ct);
+
+        var code = _otp.GenerateCode();
+        var now = _clock.UtcNow;
+        var record = new PendingRegistrationRecord(
+            pending, _otp.Hash(pendingId, purpose, code), now.AddMinutes(_otp.ExpiryMinutes), now);
+        await _pendingStore.SaveAsync(pendingId, record, TimeSpan.FromMinutes(_otp.ExpiryMinutes), ct);
+
+        await _sms.SendAsync(pending.Phone, $"رمز التحقق الخاص بك في همزة وصل: {code}", ct);
+        await _otp.MarkSentAsync(pendingId, purpose, ct);
+        await MarkTargetCooldownAsync(pending.Phone, ct);
+
+        return new RegisterPendingResponse(true, pendingId.ToString("N"), record.ExpiresAt, pending.Phone);
+    }
+
+    private async Task<AuthResponse> CreateAccountFromPendingAsync(PendingRegistration pending, CancellationToken ct)
+    {
+        var role = await _db.AccountRoles.SingleOrDefaultAsync(r => r.RoleName == pending.Role, ct)
+                   ?? throw new AppException(500, ErrorCodes.InternalError, "تعذر تحميل نوع الحساب.");
+
+        var now = _clock.UtcNow;
+        var userId = Guid.NewGuid();
+        var isOrganization = RoleNames.IsOrganization(pending.Role);
+        var isGoogle = pending.Provider == PendingRegistrationProviders.Google;
+
+        await using var transaction = await _db.Database.BeginTransactionAsync(ct);
+
+        var account = new UserAccount
+        {
+            UserId = userId,
+            RoleId = role.RoleId,
+            Email = pending.Email,
+            EmailVerified = isGoogle,
+            Phone = pending.Phone,
+            PhoneVerified = true,
+            AccountStatus = isOrganization ? AccountStatuses.PendingApproval : AccountStatuses.Active,
+            CreatedAt = now
+        };
+        _db.UserAccounts.Add(account);
+
+        _db.UserProfiles.Add(new UserProfile
+        {
+            UserId = userId,
+            DisplayName = pending.DisplayName,
+            Visibility = ProfileVisibilities.Public
+        });
+
+        _db.ConsentRecords.Add(new ConsentRecord
+        {
+            ConsentId = Guid.NewGuid(),
+            UserId = userId,
+            Purpose = ConsentPurposes.Terms,
+            PolicyVersion = pending.PolicyVersion,
+            GrantedAt = now
+        });
+
+        if (pending.Role == RoleNames.Volunteer)
+        {
+            _db.VolunteerProfiles.Add(new VolunteerProfile
+            {
+                UserId = userId,
+                HelpMode = HelpModes.OnlineOnly,
+                ServiceArea = string.Empty,
+                SkillLevel = SkillLevels.Beginner,
+                WeeklyHours = 1,
+                VerificationStatus = VerificationStatuses.Unverified
+            });
+        }
+
+        if (isOrganization)
+        {
+            _db.Organizations.Add(new Organization
+            {
+                OrganizationId = Guid.NewGuid(),
+                OwnerUserId = userId,
+                OrganizationType = pending.Role,
+                Name = pending.DisplayName,
+                ApprovalStatus = OrganizationApprovalStatuses.Pending
+            });
+        }
+
+        await _db.SaveChangesAsync(ct);
+
+        var appUser = new AppUser
+        {
+            Id = userId,
+            UserName = pending.Email,
+            Email = pending.Email,
+            EmailConfirmed = isGoogle,
+            PhoneNumber = pending.Phone,
+            PhoneNumberConfirmed = true,
+            UserAccount = account
+        };
+
+        // Password registrations reuse the hash produced in step 1 (the plaintext never
+        // touches the pending state); Google registrations have no local password.
+        if (!isGoogle)
+        {
+            appUser.PasswordHash = pending.PasswordHash;
+        }
+
+        var createResult = await _users.CreateAsync(appUser);
+        if (!createResult.Succeeded)
+        {
+            await transaction.RollbackAsync(ct);
+            throw ToValidationException(createResult);
+        }
+
+        var response = await CreateSessionAsync(account, pending.Role, pending.DisplayName, null, ct);
+        await transaction.CommitAsync(ct);
+        return response;
+    }
+
     private async Task EnsureTargetCooldownAsync(string target, CancellationToken ct)
     {
         var key = $"otp:cooldown:target:{target}";
@@ -596,8 +741,10 @@ public sealed class AuthService : IAuthService
     }
 
     private Task MarkTargetCooldownAsync(string target, CancellationToken ct) =>
-        _cache.SetStringAsync($"otp:cooldown:target:{target}", "1",
-            new DistributedCacheEntryOptions { AbsoluteExpirationRelativeToNow = TimeSpan.FromSeconds(60) }, ct);
+        _otp.TargetCooldown <= TimeSpan.Zero
+            ? Task.CompletedTask
+            : _cache.SetStringAsync($"otp:cooldown:target:{target}", "1",
+                new DistributedCacheEntryOptions { AbsoluteExpirationRelativeToNow = _otp.TargetCooldown }, ct);
 
     public async Task<UserSessionDto> GetSessionAsync(Guid userId, CancellationToken ct = default)
     {

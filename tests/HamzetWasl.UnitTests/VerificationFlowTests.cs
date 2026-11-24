@@ -84,6 +84,7 @@ public sealed class FakeStorage : IFileStorage
     private int _counter;
     public List<string> SavedKeys { get; } = [];
     public List<string> DeletedKeys { get; } = [];
+    public bool ThrowOnDelete { get; set; }
 
     public Task<StoredFile> SaveAsync(FileUpload file, FileCategory category, Guid ownerId, CancellationToken ct = default)
     {
@@ -94,6 +95,7 @@ public sealed class FakeStorage : IFileStorage
 
     public Task DeleteAsync(string key, CancellationToken ct = default)
     {
+        if (ThrowOnDelete) throw new IOException("simulated storage failure");
         DeletedKeys.Add(key);
         return Task.CompletedTask;
     }
@@ -359,6 +361,85 @@ public sealed class AdminDecisionTests : SqliteServiceTestBase
     }
 
     [Fact]
+    public async Task Organization_rejection_requires_notes_while_volunteer_rejection_does_not()
+    {
+        var owner = SeedUser(RoleNames.Company);
+        var organization = new Organization
+        {
+            OrganizationId = Guid.NewGuid(),
+            OwnerUserId = owner.UserId,
+            OrganizationType = OrganizationTypes.Company,
+            Name = "شركة اختبار",
+            ApprovalStatus = OrganizationApprovalStatuses.Pending
+        };
+        Db.Organizations.Add(organization);
+        var orgReview = new OrganizationReview
+        {
+            ReviewId = Guid.NewGuid(),
+            OrganizationId = organization.OrganizationId,
+            Status = OrganizationReviewStatuses.Pending,
+            RequestedAt = Clock.UtcNow
+        };
+        Db.OrganizationReviews.Add(orgReview);
+
+        SeedVolunteer(out var volunteerId);
+        var volReview = SeedReview(volunteerId, VerificationReviewStatuses.InterviewScheduled);
+        var admin = SeedUser(RoleNames.Admin);
+        await Db.SaveChangesAsync();
+        var service = NewAdminService();
+
+        var rejectOrgWithoutNotes = () => service.DecideOrganizationReviewAsync(
+            orgReview.ReviewId, admin.UserId, new DecisionRequest { Approve = false, Notes = "   " });
+        await rejectOrgWithoutNotes.Should().ThrowAsync<AppException>()
+            .Where(e => e.StatusCode == 400 && e.Code == ErrorCodes.ValidationError);
+
+        // Volunteer rejection without notes succeeds (VERIFICATION_REVIEW has no decision_notes column).
+        await service.DecideVolunteerReviewAsync(
+            volReview.ReviewId, admin.UserId, new DecisionRequest { Approve = false, Notes = null });
+
+        ClearTracker();
+        (await Db.VerificationReviews.SingleAsync(r => r.ReviewId == volReview.ReviewId))
+            .Status.Should().Be(VerificationReviewStatuses.Rejected);
+    }
+
+    [Fact]
+    public async Task Resolving_organization_deletion_deletes_logo_and_cover_files()
+    {
+        var owner = SeedUser(RoleNames.Company);
+        var organization = new Organization
+        {
+            OrganizationId = Guid.NewGuid(),
+            OwnerUserId = owner.UserId,
+            OrganizationType = OrganizationTypes.Company,
+            Name = "شركة للحذف",
+            LogoStorageKey = "org/logo.png",
+            CoverStorageKey = "org/cover.png",
+            ApprovalStatus = OrganizationApprovalStatuses.Pending
+        };
+        Db.Organizations.Add(organization);
+        var deletion = new DeletionRequest
+        {
+            DeletionRequestId = Guid.NewGuid(),
+            UserId = owner.UserId,
+            Status = DeletionRequestStatuses.Pending,
+            RequestedAt = Clock.UtcNow
+        };
+        Db.DeletionRequests.Add(deletion);
+        var admin = SeedUser(RoleNames.Admin);
+        await Db.SaveChangesAsync();
+
+        await Db.Database.ExecuteSqlRawAsync("ATTACH DATABASE ':memory:' AS dbo");
+        await Db.Database.ExecuteSqlRawAsync("CREATE TABLE dbo.USER_INTEREST (user_id TEXT NOT NULL, interest_id INTEGER NOT NULL)");
+        await Db.Database.ExecuteSqlRawAsync("CREATE TABLE dbo.USER_SKILL (user_id TEXT NOT NULL, skill_id INTEGER NOT NULL)");
+
+        await NewAdminService().ResolveDeletionRequestAsync(admin.UserId, deletion.DeletionRequestId,
+            new ResolveDeletionRequestRequest { Approve = true });
+
+        Storage.DeletedKeys.Should().Contain("org/logo.png");
+        Storage.DeletedKeys.Should().Contain("org/cover.png");
+    }
+
+    [Fact]
     public async Task Resolving_deletion_keeps_the_original_created_at()
     {
         var user = SeedUser(RoleNames.Volunteer);
@@ -556,6 +637,20 @@ public sealed class EvidenceTests : SqliteServiceTestBase
     }
 
     [Fact]
+    public async Task Uploading_evidence_is_blocked_once_interview_is_scheduled()
+    {
+        SeedVolunteer(out var userId);
+        SeedReview(userId, VerificationReviewStatuses.InterviewScheduled, withAllEvidence: true);
+        await Db.SaveChangesAsync();
+        var service = NewVolunteerService();
+
+        using var upload = new FileUpload(new MemoryStream([1, 2, 3]), "front.jpg", "image/jpeg", 3);
+        var act = () => service.UploadEvidenceAsync(userId, EvidenceTypes.NationalIdFront, upload);
+        await act.Should().ThrowAsync<AppException>()
+            .Where(e => e.StatusCode == 422 && e.Code == ErrorCodes.InvalidState);
+    }
+
+    [Fact]
     public async Task Retention_cleanup_deletes_expired_evidence_of_closed_rounds_only()
     {
         SeedVolunteer(out var userId);
@@ -592,6 +687,36 @@ public sealed class EvidenceTests : SqliteServiceTestBase
             .Should().BeTrue("evidence inside the retention window is kept");
     }
 
+    [Fact]
+    public async Task Retention_cleanup_keeps_the_row_when_the_file_delete_fails()
+    {
+        SeedVolunteer(out var userId);
+        var closed = SeedReview(userId, VerificationReviewStatuses.Rejected,
+            singleEvidenceType: EvidenceTypes.NationalIdFront, storageKey: "failing");
+        closed.DecidedAt = Clock.UtcNow.AddDays(-100);
+        await Db.SaveChangesAsync();
+
+        await Db.VerificationEvidences
+            .Where(e => e.ReviewId == closed.ReviewId)
+            .ExecuteUpdateAsync(s => s.SetProperty(e => e.RetentionUntil, Clock.UtcNow.AddMinutes(-1)));
+
+        Storage.ThrowOnDelete = true;
+        await RunCleanupOnceAsync();
+
+        ClearTracker();
+        (await Db.VerificationEvidences.AnyAsync(e => e.ReviewId == closed.ReviewId))
+            .Should().BeTrue("a file that could not be deleted keeps its row so the next run retries it");
+        Storage.DeletedKeys.Should().NotContain("failing-national_id_front");
+
+        Storage.ThrowOnDelete = false;
+        await RunCleanupOnceAsync();
+
+        ClearTracker();
+        (await Db.VerificationEvidences.AnyAsync(e => e.ReviewId == closed.ReviewId))
+            .Should().BeFalse("the retry removes the row once the file is deleted");
+        Storage.DeletedKeys.Should().Contain("failing-national_id_front");
+    }
+
     private async Task RunCleanupOnceAsync()
     {
         var services = new ServiceCollection();
@@ -612,5 +737,75 @@ public sealed class EvidenceTests : SqliteServiceTestBase
             .GetMethod("CleanupOnceAsync", BindingFlags.NonPublic | BindingFlags.Instance)
             ?? throw new InvalidOperationException("CleanupOnceAsync not found.");
         await (Task)method.Invoke(cleanup, [CancellationToken.None])!;
+    }
+}
+
+public sealed class OrganizationServiceRulesTests : SqliteServiceTestBase
+{
+    [Fact]
+    public async Task Organization_can_submit_without_contact_information_matching_figma_ui()
+    {
+        var owner = SeedUser(RoleNames.Company);
+        var organization = new Organization
+        {
+            OrganizationId = Guid.NewGuid(),
+            OwnerUserId = owner.UserId,
+            OrganizationType = OrganizationTypes.Company,
+            Name = "شركة همزة",
+            Field = "technology",
+            Description = "نبذة عن الشركة",
+            Governorate = "cairo",
+            City = "nasr_city",
+            EmployeeCountRange = "1-10",
+            LogoStorageKey = "logos/logo.png",
+            ContactInformation = null,
+            ApprovalStatus = OrganizationApprovalStatuses.Pending
+        };
+        Db.Organizations.Add(organization);
+        foreach (var docType in DocumentTypes.Required)
+        {
+            Db.OrganizationDocuments.Add(new OrganizationDocument
+            {
+                DocumentId = Guid.NewGuid(),
+                OrganizationId = organization.OrganizationId,
+                DocumentType = docType,
+                StorageKey = $"docs/{docType}.pdf",
+                UploadedAt = Clock.UtcNow
+            });
+        }
+        await Db.SaveChangesAsync();
+
+        var service = new OrganizationService(Db, Storage, new FakeGeoCatalog(), Clock);
+        var result = await service.SubmitAsync(owner.UserId);
+
+        result.ReviewStatus.Should().Be(OrganizationReviewStatuses.Pending);
+        result.ApprovalStatus.Should().Be(OrganizationApprovalStatuses.Pending);
+    }
+
+    [Fact]
+    public async Task Organization_update_rejects_city_without_governorate()
+    {
+        var owner = SeedUser(RoleNames.Company);
+        Db.Organizations.Add(new Organization
+        {
+            OrganizationId = Guid.NewGuid(),
+            OwnerUserId = owner.UserId,
+            OrganizationType = OrganizationTypes.Company,
+            Name = "شركة همزة",
+            ApprovalStatus = OrganizationApprovalStatuses.Pending
+        });
+        await Db.SaveChangesAsync();
+
+        var service = new OrganizationService(Db, Storage, new FakeGeoCatalog(), Clock);
+        var act = () => service.UpdateAsync(owner.UserId, new Application.Contracts.Organization.UpdateOrganizationRequest
+        {
+            Name = "شركة همزة",
+            Governorate = null,
+            City = "nasr_city"
+        });
+
+        await act.Should().ThrowAsync<AppException>()
+            .Where(e => e.StatusCode == 400 && e.Code == ErrorCodes.ValidationError
+                        && e.Fields != null && e.Fields.ContainsKey("governorate"));
     }
 }

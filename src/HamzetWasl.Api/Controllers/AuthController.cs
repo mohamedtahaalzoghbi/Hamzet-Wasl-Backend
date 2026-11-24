@@ -17,10 +17,29 @@ public sealed class AuthController : ApiControllerBase
     [AllowAnonymous]
     [EnableRateLimiting("auth")]
     [HttpPost("register")]
-    [ProducesResponseType(typeof(ApiResponse<AuthResponse>), StatusCodes.Status201Created)]
-    public async Task<ActionResult<ApiResponse<AuthResponse>>> Register(
+    [ProducesResponseType(typeof(ApiResponse<RegisterPendingResponse>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<ApiResponse<RegisterPendingResponse>>> Register(
         [FromBody] RegisterRequest request, CancellationToken ct) =>
-        CreatedEnvelope(await _auth.RegisterAsync(request, ct));
+        Ok(Envelope(await _auth.RegisterAsync(request, ct)));
+
+    [AllowAnonymous]
+    [EnableRateLimiting("otp")]
+    [HttpPost("register/complete")]
+    [ProducesResponseType(typeof(ApiResponse<AuthResponse>), StatusCodes.Status201Created)]
+    public async Task<ActionResult<ApiResponse<AuthResponse>>> CompleteRegistration(
+        [FromBody] CompleteRegistrationRequest request, CancellationToken ct) =>
+        CreatedEnvelope(await _auth.CompleteRegistrationAsync(request, ct));
+
+    [AllowAnonymous]
+    [EnableRateLimiting("otp")]
+    [HttpPost("register/resend")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    public async Task<IActionResult> ResendRegistrationCode(
+        [FromBody] ResendRegistrationCodeRequest request, CancellationToken ct)
+    {
+        await _auth.ResendRegistrationCodeAsync(request, ct);
+        return NoContent();
+    }
 
     [AllowAnonymous]
     [EnableRateLimiting("auth")]

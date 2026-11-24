@@ -113,6 +113,10 @@ public sealed class AdminService : IAdminService
         // Atomic decision: the conditional update lets exactly one of two concurrent
         // decisions win. Eligibility is unchanged (pending or interview_scheduled);
         // requiring the interview to have happened first is an open design question (Q24).
+        // The decision, the profile update and the audit share one transaction, so a
+        // failure in between can never leave a decided review with a stale profile.
+        await using var transaction = await _db.Database.BeginTransactionAsync(ct);
+
         var decided = await _db.VerificationReviews
             .Where(r => r.ReviewId == reviewId
                 && (r.Status == VerificationReviewStatuses.Pending
@@ -149,6 +153,7 @@ public sealed class AdminService : IAdminService
             "verification_review", reviewId, AuditOutcomes.Success, now);
 
         await _db.SaveChangesAsync(ct);
+        await transaction.CommitAsync(ct);
 
         await _notifications.NotifyAsync(
             review.VolunteerId,
@@ -210,12 +215,24 @@ public sealed class AdminService : IAdminService
 
     public async Task DecideOrganizationReviewAsync(Guid reviewId, Guid reviewerId, DecisionRequest request, CancellationToken ct = default)
     {
+        if (!request.Approve && string.IsNullOrWhiteSpace(request.Notes))
+        {
+            throw AppException.Validation(new Dictionary<string, string[]>
+            {
+                ["notes"] = ["اذكر سبب الرفض في الملاحظات."]
+            });
+        }
+
         var now = _clock.UtcNow;
         var notes = string.IsNullOrWhiteSpace(request.Notes) ? null : request.Notes.Trim();
         var newStatus = request.Approve ? OrganizationReviewStatuses.Approved : OrganizationReviewStatuses.Rejected;
 
         // Atomic decision: the conditional update lets exactly one of two concurrent
-        // decisions win; the loser gets a clear already-decided error.
+        // decisions win; the loser gets a clear already-decided error. The decision,
+        // the organization/owner updates and the audit share one transaction, so a
+        // failure in between can never leave a decided review with a stale organization.
+        await using var transaction = await _db.Database.BeginTransactionAsync(ct);
+
         var decided = await _db.OrganizationReviews
             .Where(r => r.ReviewId == reviewId && r.Status == OrganizationReviewStatuses.Pending)
             .ExecuteUpdateAsync(s => s
@@ -254,6 +271,7 @@ public sealed class AdminService : IAdminService
             "organization_review", reviewId, AuditOutcomes.Success, now);
 
         await _db.SaveChangesAsync(ct);
+        await transaction.CommitAsync(ct);
 
         await _notifications.NotifyAsync(
             review.Organization.OwnerUserId,
@@ -391,20 +409,43 @@ public sealed class AdminService : IAdminService
         }
 
         var now = _clock.UtcNow;
+        List<string> storageKeysToDelete = [];
         if (request.Approve)
         {
-            await AnonymizeUserAsync(deletion.UserId, ct);
+            // Every database step of the anonymisation shares one transaction, so a
+            // failure in the middle can never leave a half-anonymised account while
+            // the request stays pending. Files are deleted after the commit: storage
+            // is not transactional, and a file-system failure must not roll the
+            // anonymisation back.
+            await using var transaction = await _db.Database.BeginTransactionAsync(ct);
+            await AnonymizeUserAsync(deletion.UserId, storageKeysToDelete, ct);
             deletion.Status = DeletionRequestStatuses.Completed;
+            deletion.ResolvedAt = now;
+            AddAudit(adminId, AdminActions.ResolveDeletionRequest, "deletion_request", deletionRequestId,
+                AuditOutcomes.Success, now);
+            await _db.SaveChangesAsync(ct);
+            await transaction.CommitAsync(ct);
         }
         else
         {
             deletion.Status = DeletionRequestStatuses.Rejected;
+            deletion.ResolvedAt = now;
+            AddAudit(adminId, AdminActions.ResolveDeletionRequest, "deletion_request", deletionRequestId,
+                AuditOutcomes.Success, now);
+            await _db.SaveChangesAsync(ct);
         }
 
-        deletion.ResolvedAt = now;
-        AddAudit(adminId, AdminActions.ResolveDeletionRequest, "deletion_request", deletionRequestId,
-            AuditOutcomes.Success, now);
-        await _db.SaveChangesAsync(ct);
+        foreach (var storageKey in storageKeysToDelete)
+        {
+            try
+            {
+                await _storage.DeleteAsync(storageKey, ct);
+            }
+            catch (Exception)
+            {
+                // Best-effort: a leftover file is bounded to this failure.
+            }
+        }
     }
 
     public async Task<PagedResult<AdminAuditDto>> GetAuditAsync(int page, int pageSize, CancellationToken ct = default)
@@ -434,7 +475,7 @@ public sealed class AdminService : IAdminService
         });
     }
 
-    private async Task AnonymizeUserAsync(Guid userId, CancellationToken ct)
+    private async Task AnonymizeUserAsync(Guid userId, List<string> storageKeysToDelete, CancellationToken ct)
     {
         var account = await _db.UserAccounts
             .Include(a => a.UserProfile)
@@ -460,7 +501,7 @@ public sealed class AdminService : IAdminService
             account.UserProfile.Bio = null;
             account.UserProfile.City = null;
             account.UserProfile.AvatarStorageKey = null;
-            if (!string.IsNullOrWhiteSpace(oldAvatar)) await _storage.DeleteAsync(oldAvatar, ct);
+            if (!string.IsNullOrWhiteSpace(oldAvatar)) storageKeysToDelete.Add(oldAvatar);
         }
 
         var appUser = await _db.Users.FirstOrDefaultAsync(u => u.Id == userId, ct);
@@ -490,7 +531,7 @@ public sealed class AdminService : IAdminService
                 {
                     try
                     {
-                        await _storage.DeleteAsync(_protector.Unprotect(evidence.EncryptedStorageKey), ct);
+                        storageKeysToDelete.Add(_protector.Unprotect(evidence.EncryptedStorageKey));
                     }
                     catch (Exception)
                     {
@@ -531,7 +572,17 @@ public sealed class AdminService : IAdminService
         {
             foreach (var doc in account.Organization.OrganizationDocuments)
             {
-                await _storage.DeleteAsync(doc.StorageKey, ct);
+                if (!string.IsNullOrWhiteSpace(doc.StorageKey)) storageKeysToDelete.Add(doc.StorageKey);
+            }
+
+            if (!string.IsNullOrWhiteSpace(account.Organization.LogoStorageKey))
+            {
+                storageKeysToDelete.Add(account.Organization.LogoStorageKey);
+            }
+
+            if (!string.IsNullOrWhiteSpace(account.Organization.CoverStorageKey))
+            {
+                storageKeysToDelete.Add(account.Organization.CoverStorageKey);
             }
 
             await _db.OrganizationDocuments.Where(d => d.OrganizationId == account.Organization.OrganizationId).ExecuteDeleteAsync(ct);

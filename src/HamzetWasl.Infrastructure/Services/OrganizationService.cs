@@ -43,8 +43,13 @@ public sealed class OrganizationService : IOrganizationService
         }
 
         AreaDto? area = null;
-        if (!string.IsNullOrWhiteSpace(request.City) && governorate is not null)
+        if (!string.IsNullOrWhiteSpace(request.City))
         {
+            if (governorate is null)
+            {
+                throw AppException.Validation(new Dictionary<string, string[]> { ["governorate"] = ["يجب اختيار المحافظة أولاً."] });
+            }
+
             area = await _geo.FindAreaAsync(governorate, request.City, ct);
             if (area is null)
             {
@@ -72,7 +77,7 @@ public sealed class OrganizationService : IOrganizationService
         var old = organization.LogoStorageKey;
         organization.LogoStorageKey = stored.Key;
         await _db.SaveChangesAsync(ct);
-        if (!string.IsNullOrWhiteSpace(old)) await _storage.DeleteAsync(old, ct);
+        await DeleteBestEffortAsync(old, ct);
         return _storage.GetPublicUrl(stored.Key);
     }
 
@@ -83,7 +88,7 @@ public sealed class OrganizationService : IOrganizationService
         var old = organization.CoverStorageKey;
         organization.CoverStorageKey = stored.Key;
         await _db.SaveChangesAsync(ct);
-        if (!string.IsNullOrWhiteSpace(old)) await _storage.DeleteAsync(old, ct);
+        await DeleteBestEffortAsync(old, ct);
         return _storage.GetPublicUrl(stored.Key);
     }
 
@@ -98,6 +103,7 @@ public sealed class OrganizationService : IOrganizationService
         var stored = await _storage.SaveAsync(file, FileCategory.OrganizationDocument, organization.OrganizationId, ct);
 
         var existing = organization.OrganizationDocuments.FirstOrDefault(d => d.DocumentType == documentType);
+        string? replacedKey = null;
         if (existing is null)
         {
             var document = new OrganizationDocument
@@ -113,13 +119,15 @@ public sealed class OrganizationService : IOrganizationService
         }
         else
         {
-            var old = existing.StorageKey;
+            // The replaced file is removed only after the row points at the new one,
+            // so a failed save never strands the document.
+            replacedKey = existing.StorageKey;
             existing.StorageKey = stored.Key;
             existing.UploadedAt = _clock.UtcNow;
-            if (!string.IsNullOrWhiteSpace(old)) await _storage.DeleteAsync(old, ct);
         }
 
         await _db.SaveChangesAsync(ct);
+        await DeleteBestEffortAsync(replacedKey, ct);
         return Map(organization);
     }
 
@@ -210,6 +218,21 @@ public sealed class OrganizationService : IOrganizationService
         return organization;
     }
 
+    private async Task DeleteBestEffortAsync(string? key, CancellationToken ct)
+    {
+        // Removing a replaced file is best-effort: the row already points at the new
+        // file, and a storage failure must not fail the upload.
+        if (string.IsNullOrWhiteSpace(key)) return;
+        try
+        {
+            await _storage.DeleteAsync(key, ct);
+        }
+        catch (Exception)
+        {
+            // Leftover replaced file; bounded to this failure.
+        }
+    }
+
     private OrganizationResponse Map(Organization organization)
     {
         var missing = MissingDocuments(organization);
@@ -265,7 +288,6 @@ public sealed class OrganizationService : IOrganizationService
         if (string.IsNullOrWhiteSpace(organization.Governorate)) missing.Add("governorate");
         if (string.IsNullOrWhiteSpace(organization.City)) missing.Add("city");
         if (string.IsNullOrWhiteSpace(organization.EmployeeCountRange)) missing.Add("employeeCountRange");
-        if (string.IsNullOrWhiteSpace(organization.ContactInformation)) missing.Add("contactInformation");
         if (string.IsNullOrWhiteSpace(organization.LogoStorageKey)) missing.Add("logo");
         return missing;
     }
