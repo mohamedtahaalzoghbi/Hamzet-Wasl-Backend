@@ -131,19 +131,40 @@ public sealed class VolunteerService : IVolunteerService
 
         var stored = await _storage.SaveAsync(file, FileCategory.VerificationEvidence, userId, ct);
 
-        await _db.VerificationEvidences
-            .Where(e => e.ReviewId == review.ReviewId && e.EvidenceType == evidenceType)
-            .ExecuteDeleteAsync(ct);
-
-        _db.VerificationEvidences.Add(new VerificationEvidence
+        // The row swap is one transaction: a failure in the middle can never lose the
+        // old evidence record while the new one is missing. If the swap fails, the
+        // just-stored file is removed again so it does not stay on disk unreferenced.
+        try
         {
-            EvidenceId = Guid.NewGuid(),
-            ReviewId = review.ReviewId,
-            EvidenceType = evidenceType,
-            EncryptedStorageKey = _protector.Protect(stored.Key),
-            RetentionUntil = _clock.UtcNow.AddDays(_retention.VerificationEvidenceDays)
-        });
-        await _db.SaveChangesAsync(ct);
+            await using var transaction = await _db.Database.BeginTransactionAsync(ct);
+            await _db.VerificationEvidences
+                .Where(e => e.ReviewId == review.ReviewId && e.EvidenceType == evidenceType)
+                .ExecuteDeleteAsync(ct);
+
+            _db.VerificationEvidences.Add(new VerificationEvidence
+            {
+                EvidenceId = Guid.NewGuid(),
+                ReviewId = review.ReviewId,
+                EvidenceType = evidenceType,
+                EncryptedStorageKey = _protector.Protect(stored.Key),
+                RetentionUntil = _clock.UtcNow.AddDays(_retention.VerificationEvidenceDays)
+            });
+            await _db.SaveChangesAsync(ct);
+            await transaction.CommitAsync(ct);
+        }
+        catch
+        {
+            try
+            {
+                await _storage.DeleteAsync(stored.Key, CancellationToken.None);
+            }
+            catch (Exception)
+            {
+                // Best-effort compensation; bounded to this failure.
+            }
+
+            throw;
+        }
 
         foreach (var replacedKey in replacedKeys)
         {
@@ -153,8 +174,8 @@ public sealed class VolunteerService : IVolunteerService
             }
             catch (Exception)
             {
-                // Key corruption or a storage failure must not fail the upload;
-                // the retention cleanup removes files whose rows are gone.
+                // Key corruption or a storage failure must not fail the upload; the
+                // replaced file is already dereferenced and stays bounded to this failure.
             }
         }
     }

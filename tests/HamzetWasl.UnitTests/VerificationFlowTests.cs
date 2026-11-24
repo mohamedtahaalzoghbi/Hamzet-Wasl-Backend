@@ -84,6 +84,7 @@ public sealed class FakeStorage : IFileStorage
     private int _counter;
     public List<string> SavedKeys { get; } = [];
     public List<string> DeletedKeys { get; } = [];
+    public bool ThrowOnDelete { get; set; }
 
     public Task<StoredFile> SaveAsync(FileUpload file, FileCategory category, Guid ownerId, CancellationToken ct = default)
     {
@@ -94,6 +95,7 @@ public sealed class FakeStorage : IFileStorage
 
     public Task DeleteAsync(string key, CancellationToken ct = default)
     {
+        if (ThrowOnDelete) throw new IOException("simulated storage failure");
         DeletedKeys.Add(key);
         return Task.CompletedTask;
     }
@@ -590,6 +592,36 @@ public sealed class EvidenceTests : SqliteServiceTestBase
         Storage.DeletedKeys.Should().NotContain("expired-open-national_id_front");
         (await Db.VerificationEvidences.AnyAsync(e => e.ReviewId == future.ReviewId))
             .Should().BeTrue("evidence inside the retention window is kept");
+    }
+
+    [Fact]
+    public async Task Retention_cleanup_keeps_the_row_when_the_file_delete_fails()
+    {
+        SeedVolunteer(out var userId);
+        var closed = SeedReview(userId, VerificationReviewStatuses.Rejected,
+            singleEvidenceType: EvidenceTypes.NationalIdFront, storageKey: "failing");
+        closed.DecidedAt = Clock.UtcNow.AddDays(-100);
+        await Db.SaveChangesAsync();
+
+        await Db.VerificationEvidences
+            .Where(e => e.ReviewId == closed.ReviewId)
+            .ExecuteUpdateAsync(s => s.SetProperty(e => e.RetentionUntil, Clock.UtcNow.AddMinutes(-1)));
+
+        Storage.ThrowOnDelete = true;
+        await RunCleanupOnceAsync();
+
+        ClearTracker();
+        (await Db.VerificationEvidences.AnyAsync(e => e.ReviewId == closed.ReviewId))
+            .Should().BeTrue("a file that could not be deleted keeps its row so the next run retries it");
+        Storage.DeletedKeys.Should().NotContain("failing-national_id_front");
+
+        Storage.ThrowOnDelete = false;
+        await RunCleanupOnceAsync();
+
+        ClearTracker();
+        (await Db.VerificationEvidences.AnyAsync(e => e.ReviewId == closed.ReviewId))
+            .Should().BeFalse("the retry removes the row once the file is deleted");
+        Storage.DeletedKeys.Should().Contain("failing-national_id_front");
     }
 
     private async Task RunCleanupOnceAsync()

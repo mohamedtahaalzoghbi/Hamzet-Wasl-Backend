@@ -93,26 +93,39 @@ public sealed class EvidenceRetentionCleanupService(
                 return;
             }
 
+            // Only a file that was actually deleted loses its database row. A failed
+            // delete keeps the row, so the next run retries it: nothing is orphaned.
+            var deletedIds = new List<Guid>(expired.Count);
             foreach (var item in expired)
             {
                 try
                 {
                     await storage.DeleteAsync(protector.Unprotect(item.EncryptedStorageKey), ct);
+                    deletedIds.Add(item.EvidenceId);
                 }
                 catch (Exception ex)
                 {
-                    // The row is removed either way; an orphaned file is retried by no one,
-                    // so the failure is logged for the operator.
-                    logger.LogWarning(ex, "Failed to delete the expired evidence file {EvidenceId}.", item.EvidenceId);
+                    logger.LogWarning(ex, "Failed to delete the expired evidence file {EvidenceId}; its row is kept for the next run.", item.EvidenceId);
                 }
             }
 
-            var ids = expired.Select(e => e.EvidenceId).ToList();
+            if (deletedIds.Count == 0)
+            {
+                return;
+            }
+
             var removed = await db.VerificationEvidences
-                .Where(e => ids.Contains(e.EvidenceId))
+                .Where(e => deletedIds.Contains(e.EvidenceId))
                 .ExecuteDeleteAsync(ct);
 
             logger.LogInformation("Retention cleanup removed {Count} expired verification evidence record(s).", removed);
+
+            if (deletedIds.Count < expired.Count)
+            {
+                // Some files could not be deleted; they retry on the next scheduled run
+                // instead of a hot loop over the same failing rows.
+                return;
+            }
         }
     }
 }

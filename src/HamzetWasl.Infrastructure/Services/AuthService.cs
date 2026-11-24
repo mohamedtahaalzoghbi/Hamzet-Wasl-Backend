@@ -268,6 +268,20 @@ public sealed class AuthService : IAuthService
                 true, ticket, email, googleUser.Name, RoleNames.PublicRegistration.ToArray()));
         }
 
+        // The registration ticket issued by the first pass is verified when the client
+        // sends it back: it must be valid and bound to the same Google identity as the
+        // ID token in this request. Clients that re-send only the ID token keep working.
+        if (!string.IsNullOrWhiteSpace(request.RegistrationTicket))
+        {
+            var ticket = _tokens.ValidateGoogleRegistrationTicket(request.RegistrationTicket);
+            if (ticket is null
+                || !string.Equals(ticket.Email, email, StringComparison.OrdinalIgnoreCase)
+                || !string.Equals(ticket.GoogleSubject, googleUser.Subject, StringComparison.Ordinal))
+            {
+                throw new AppException(401, ErrorCodes.GoogleTokenInvalid);
+            }
+        }
+
         if (!RoleNames.PublicRegistration.Contains(request.Role))
         {
             throw AppException.Validation(new Dictionary<string, string[]> { ["role"] = ["نوع الحساب غير صحيح."] });

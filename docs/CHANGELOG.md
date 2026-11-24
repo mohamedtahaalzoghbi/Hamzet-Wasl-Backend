@@ -201,11 +201,28 @@ The two migration scripts failed on a database that really needed them, so they 
   automatically when their objects are missing, so a stale database no longer blocks the
   one-click start.
 
-### Design alignment round (November 24, 2026)
+### Design alignment and consistency round (November 24, 2026)
+
+No contract change: every request/response field and status code is unchanged.
 
 - `serviceRadiusKm` is now **1–100 km** (was 1–200), matching the Figma location screen
   ("up to 100 km"). Recorded as `docs/DEVIATIONS.md` #24; existing databases apply
   `db/migrations/Hamzet_Wasl_Migration_v2_4_radius_100.sql`.
+- Evidence retention: a file whose delete fails keeps its database row and is retried on
+  the next run instead of being orphaned on disk (`EvidenceRetentionCleanupService`);
+  `LocalFileStorage.DeleteAsync` now surfaces real IO failures so the retry can happen.
+- The admin volunteer/organization decisions wrap the conditional update, the profile or
+  organization update and the audit in **one transaction**, so a mid-way failure can no
+  longer leave a decided review with a stale profile.
+- Account anonymisation (`ResolveDeletionRequestAsync` approve path) runs in **one
+  transaction**; the file deletions happen after the commit and are best-effort.
+- Evidence replacement (`UploadEvidenceAsync`) swaps the rows in **one transaction** and
+  removes the newly stored file again if the swap fails.
+- The Google `registrationTicket` is now **verified** when a client sends it back during
+  registration completion (same email and Google subject as the ID token); it was issued
+  but never checked before. Clients that re-send only the ID token are unaffected.
+- Replacing an organization document removes the old file only after the row points at
+  the new one, and the old-file deletes of avatar/logo/cover replacement are best-effort.
 
 ### Earlier changes inside v1
 

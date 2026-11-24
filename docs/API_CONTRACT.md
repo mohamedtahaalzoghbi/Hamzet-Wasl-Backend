@@ -115,7 +115,7 @@ is rejected with 401, even if it is sent as a bearer token.
 |---|---|---|---|
 | POST | `/auth/register` | – | Public registration for the 4 public roles (201) |
 | POST | `/auth/login` | – | Email or phone + password (200) |
-| POST | `/auth/google` | – | Google ID token sign-in (200); a first-time user gets `registrationRequired` in the payload |
+| POST | `/auth/google` | – | Google ID token sign-in (200); a first-time user gets `registrationRequired` in the payload. The returned `registrationTicket` is verified when sent back at registration completion |
 | POST | `/auth/refresh` | – | Rotate refresh token → new pair (200) |
 | POST | `/auth/logout` | Bearer | Revoke the supplied refresh token (204) |
 | POST | `/auth/forgot-password` | – | Always 204 (never reveals existence) |
