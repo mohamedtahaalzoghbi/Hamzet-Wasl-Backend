@@ -14,6 +14,7 @@ public sealed class AuthController : ApiControllerBase
 
     public AuthController(IAuthService auth) => _auth = auth;
 
+    /// <summary>[Public — No Token] Sign Up Step 1: Validates registration data and sends phone OTP. Does NOT create the account in DB yet; returns registrationTicket.</summary>
     [AllowAnonymous]
     [EnableRateLimiting("auth")]
     [HttpPost("register")]
@@ -22,6 +23,7 @@ public sealed class AuthController : ApiControllerBase
         [FromBody] RegisterRequest request, CancellationToken ct) =>
         Ok(Envelope(await _auth.RegisterAsync(request, ct)));
 
+    /// <summary>[Public — No Token] Sign Up Step 2: Verifies phone OTP using registrationTicket, creates the account in DB, and returns JWT access &amp; refresh tokens.</summary>
     [AllowAnonymous]
     [EnableRateLimiting("otp")]
     [HttpPost("register/complete")]
@@ -30,6 +32,7 @@ public sealed class AuthController : ApiControllerBase
         [FromBody] CompleteRegistrationRequest request, CancellationToken ct) =>
         CreatedEnvelope(await _auth.CompleteRegistrationAsync(request, ct));
 
+    /// <summary>[Public — No Token] Resends the Sign Up phone OTP for an active registrationTicket.</summary>
     [AllowAnonymous]
     [EnableRateLimiting("otp")]
     [HttpPost("register/resend")]
@@ -41,6 +44,7 @@ public sealed class AuthController : ApiControllerBase
         return NoContent();
     }
 
+    /// <summary>[Public — No Token] Logs in with email or phone + password and returns JWT access &amp; refresh tokens.</summary>
     [AllowAnonymous]
     [EnableRateLimiting("auth")]
     [HttpPost("login")]
@@ -49,6 +53,7 @@ public sealed class AuthController : ApiControllerBase
         [FromBody] LoginRequest request, CancellationToken ct) =>
         Ok(Envelope(await _auth.LoginAsync(request, ct)));
 
+    /// <summary>[Public — No Token] Sign in or start sign up using a Google ID token.</summary>
     [AllowAnonymous]
     [EnableRateLimiting("auth")]
     [HttpPost("google")]
@@ -57,6 +62,7 @@ public sealed class AuthController : ApiControllerBase
         [FromBody] GoogleAuthRequest request, CancellationToken ct) =>
         Ok(Envelope(await _auth.GoogleAsync(request, ct)));
 
+    /// <summary>[Public — No Token] Rotates a refresh token into a fresh access &amp; refresh token pair.</summary>
     [AllowAnonymous]
     [EnableRateLimiting("auth")]
     [HttpPost("refresh")]
@@ -65,6 +71,7 @@ public sealed class AuthController : ApiControllerBase
         [FromBody] RefreshRequest request, CancellationToken ct) =>
         Ok(Envelope(await _auth.RefreshAsync(request, ct)));
 
+    /// <summary>[Bearer Token Required] Revokes active refresh tokens and logs out the current user.</summary>
     [Authorize]
     [HttpPost("logout")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
@@ -75,6 +82,7 @@ public sealed class AuthController : ApiControllerBase
         return NoContent();
     }
 
+    /// <summary>[Public — No Token] Sends a password reset token to the email if an account exists.</summary>
     [AllowAnonymous]
     [EnableRateLimiting("auth")]
     [HttpPost("forgot-password")]
@@ -86,6 +94,7 @@ public sealed class AuthController : ApiControllerBase
         return NoContent();
     }
 
+    /// <summary>[Public — No Token] Resets the password using email + reset token + new password.</summary>
     [AllowAnonymous]
     [EnableRateLimiting("auth")]
     [HttpPost("reset-password")]
@@ -97,6 +106,7 @@ public sealed class AuthController : ApiControllerBase
         return NoContent();
     }
 
+    /// <summary>[Bearer Token Required] Changes the password for the currently logged-in user.</summary>
     [Authorize]
     [EnableRateLimiting("auth")]
     [HttpPost("change-password")]
@@ -108,6 +118,7 @@ public sealed class AuthController : ApiControllerBase
         return NoContent();
     }
 
+    /// <summary>[Bearer Token Required] Sends an email verification OTP for an ALREADY logged-in user (e.g. Volunteer verification screen). NOT used during Sign Up.</summary>
     [Authorize]
     [EnableRateLimiting("otp")]
     [HttpPost("email/send-code")]
@@ -118,6 +129,7 @@ public sealed class AuthController : ApiControllerBase
         return NoContent();
     }
 
+    /// <summary>[Bearer Token Required] Verifies the 6-digit email OTP for an ALREADY logged-in user. NOT used during Sign Up.</summary>
     [Authorize]
     [EnableRateLimiting("otp")]
     [HttpPost("email/verify")]
@@ -128,6 +140,7 @@ public sealed class AuthController : ApiControllerBase
         return NoContent();
     }
 
+    /// <summary>[Bearer Token Required] Sends a phone verification OTP for an ALREADY logged-in user (e.g. Volunteer verification or phone change). For Sign Up use POST /auth/register.</summary>
     [Authorize]
     [EnableRateLimiting("otp")]
     [HttpPost("phone/send-code")]
@@ -139,6 +152,7 @@ public sealed class AuthController : ApiControllerBase
         return NoContent();
     }
 
+    /// <summary>[Bearer Token Required] Verifies the 6-digit phone OTP for an ALREADY logged-in user. For Sign Up use POST /auth/register/complete.</summary>
     [Authorize]
     [EnableRateLimiting("otp")]
     [HttpPost("phone/verify")]
@@ -149,6 +163,7 @@ public sealed class AuthController : ApiControllerBase
         return NoContent();
     }
 
+    /// <summary>[Bearer Token Required] Returns the current logged-in user's session, role, accountStatus, and verification flags.</summary>
     [Authorize]
     [HttpGet("session")]
     [ProducesResponseType(typeof(ApiResponse<UserSessionDto>), StatusCodes.Status200OK)]

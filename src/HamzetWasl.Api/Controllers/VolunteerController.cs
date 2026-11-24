@@ -15,33 +15,39 @@ public sealed class VolunteerController : ApiControllerBase
 
     public VolunteerController(IVolunteerService volunteers) => _volunteers = volunteers;
 
+    /// <summary>[Bearer Token — Volunteer] Returns the volunteer profile and current verification status.</summary>
     [HttpGet("volunteer-profile")]
     [ProducesResponseType(typeof(ApiResponse<VolunteerProfileResponse>), StatusCodes.Status200OK)]
     public async Task<ActionResult<ApiResponse<VolunteerProfileResponse>>> GetProfile(CancellationToken ct) =>
         Ok(Envelope(await _volunteers.GetProfileAsync(CurrentUserId, ct)));
 
+    /// <summary>[Bearer Token — Volunteer] Saves volunteer bio, helpMode (online_only / online_and_field), skillLevel, weeklyHours, experienceNotes, and skillIds.</summary>
     [HttpPut("volunteer-profile")]
     [ProducesResponseType(typeof(ApiResponse<VolunteerProfileResponse>), StatusCodes.Status200OK)]
     public async Task<ActionResult<ApiResponse<VolunteerProfileResponse>>> UpdateProfile(
         [FromBody] UpdateVolunteerProfileRequest request, CancellationToken ct) =>
         Ok(Envelope(await _volunteers.UpdateProfileAsync(CurrentUserId, request, ct)));
 
+    /// <summary>[Bearer Token — Volunteer] Returns the volunteer's governorate, serviceArea, map coordinates, and serviceRadiusKm.</summary>
     [HttpGet("volunteer-location")]
     [ProducesResponseType(typeof(ApiResponse<VolunteerLocationResponse>), StatusCodes.Status200OK)]
     public async Task<ActionResult<ApiResponse<VolunteerLocationResponse>>> GetLocation(CancellationToken ct) =>
         Ok(Envelope(await _volunteers.GetLocationAsync(CurrentUserId, ct)));
 
+    /// <summary>[Bearer Token — Volunteer] Saves volunteer governorate, serviceArea, latitude/longitude, and serviceRadiusKm (1–100 km).</summary>
     [HttpPut("volunteer-location")]
     [ProducesResponseType(typeof(ApiResponse<VolunteerLocationResponse>), StatusCodes.Status200OK)]
     public async Task<ActionResult<ApiResponse<VolunteerLocationResponse>>> UpdateLocation(
         [FromBody] VolunteerLocationRequest request, CancellationToken ct) =>
         Ok(Envelope(await _volunteers.UpdateLocationAsync(CurrentUserId, request, ct)));
 
+    /// <summary>[Bearer Token — Volunteer] Returns the full verification checklist (steps, currentStep, canBookInterview, uploadedEvidenceTypes, socialLinks).</summary>
     [HttpGet("verification")]
     [ProducesResponseType(typeof(ApiResponse<VerificationResponse>), StatusCodes.Status200OK)]
     public async Task<ActionResult<ApiResponse<VerificationResponse>>> GetVerification(CancellationToken ct) =>
         Ok(Envelope(await _volunteers.GetVerificationAsync(CurrentUserId, ct)));
 
+    /// <summary>[Bearer Token — Volunteer] Uploads identity verification evidence (national_id_front, national_id_back, or face_photo). Requires email and phone verified first.</summary>
     [HttpPost("verification/evidence")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [EnableRateLimiting("uploads")]
@@ -55,6 +61,7 @@ public sealed class VolunteerController : ApiControllerBase
         return NoContent();
     }
 
+    /// <summary>[Bearer Token — Volunteer] Saves social media profile URLs (facebook, linkedin, instagram — full https:// URLs).</summary>
     [HttpPut("verification/social-links")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     public async Task<IActionResult> SetSocialLinks(
@@ -64,12 +71,14 @@ public sealed class VolunteerController : ApiControllerBase
         return NoContent();
     }
 
+    /// <summary>[Bearer Token — Volunteer] Lists upcoming available interview slots (optional ?date=YYYY-MM-DD filter).</summary>
     [HttpGet("/api/v1/interview-slots")]
     [ProducesResponseType(typeof(ApiResponse<IReadOnlyList<InterviewSlotDto>>), StatusCodes.Status200OK)]
     public async Task<ActionResult<ApiResponse<IReadOnlyList<InterviewSlotDto>>>> GetInterviewSlots(
         [FromQuery] DateOnly? date, CancellationToken ct) =>
         Ok(Envelope(await _volunteers.GetInterviewSlotsAsync(date, ct)));
 
+    /// <summary>[Bearer Token — Volunteer] Books an interview slot once all prior verification steps are completed.</summary>
     [HttpPost("verification/interview")]
     [ProducesResponseType(typeof(ApiResponse<VerificationResponse>), StatusCodes.Status200OK)]
     public async Task<ActionResult<ApiResponse<VerificationResponse>>> BookInterview(

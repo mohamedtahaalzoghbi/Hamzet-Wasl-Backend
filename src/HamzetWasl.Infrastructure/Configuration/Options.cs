@@ -32,6 +32,13 @@ public sealed class OtpOptions
     /// regardless of which account or pending registration asked for it.</summary>
     public int TargetCooldownSeconds { get; set; } = 60;
     public string HashKey { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Optional fixed numeric OTP for demo/testing deployments where no real SMS/Email gateway
+    /// is configured (set via <c>Otp__FixedCode</c>, e.g. <c>123456</c>). Leave empty in real
+    /// production so every code is cryptographically random.
+    /// </summary>
+    public string? FixedCode { get; set; }
 }
 
 public sealed class RetentionOptions

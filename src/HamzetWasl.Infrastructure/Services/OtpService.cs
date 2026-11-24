@@ -14,6 +14,7 @@ public sealed class OtpService
     private readonly IDistributedCache _cache;
     private readonly IClock _clock;
     private readonly string _hashKey;
+    private readonly string? _fixedCode;
 
     public OtpService(IOptions<OtpOptions> options, IDistributedCache cache, IClock clock)
     {
@@ -29,10 +30,27 @@ public sealed class OtpService
         }
 
         _hashKey = _options.HashKey;
+
+        if (!string.IsNullOrWhiteSpace(_options.FixedCode))
+        {
+            var trimmed = _options.FixedCode.Trim();
+            if (trimmed.Length != _options.Length || !trimmed.All(char.IsAsciiDigit))
+            {
+                throw new InvalidOperationException(
+                    $"Otp:FixedCode must be exactly {_options.Length} ASCII digits when configured.");
+            }
+
+            _fixedCode = trimmed;
+        }
     }
 
     public string GenerateCode()
     {
+        if (_fixedCode is not null)
+        {
+            return _fixedCode;
+        }
+
         var max = (int)Math.Pow(10, _options.Length);
         var value = RandomNumberGenerator.GetInt32(0, max);
         return value.ToString(new string('0', _options.Length));

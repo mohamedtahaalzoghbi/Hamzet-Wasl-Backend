@@ -38,6 +38,7 @@ public sealed class DatabaseSeeder
         await SeedGeoAsync(ct);
         await SeedTrainingAsync(ct);
         await SeedAdminAsync(ct);
+        await SeedInterviewSlotsAsync(ct);
     }
 
     /// <summary>
@@ -202,5 +203,46 @@ public sealed class DatabaseSeeder
 
         await transaction.CommitAsync(ct);
         _logger.LogInformation("Admin account seeded.");
+    }
+
+    private async Task SeedInterviewSlotsAsync(CancellationToken ct)
+    {
+        var now = DateTime.UtcNow;
+        if (await _db.InterviewSlots.AnyAsync(
+                s => s.StartsAt > now && s.Status == InterviewSlotStatuses.Available, ct))
+        {
+            return;
+        }
+
+        var admin = await _db.UserAccounts
+            .Include(a => a.Role)
+            .FirstOrDefaultAsync(a => a.Role.RoleName == RoleNames.Admin, ct);
+        if (admin is null)
+        {
+            return;
+        }
+
+        // Seed starter future 30-minute slots across the next 5 days (10:00, 11:00, 14:00, 15:00, 16:00 Cairo / UTC+2)
+        // so volunteers can immediately test booking an interview on fresh deployments.
+        int[] utcHours = [8, 9, 12, 13, 14];
+        var baseDate = now.Date.AddDays(1);
+        for (var day = 0; day < 5; day++)
+        {
+            var date = baseDate.AddDays(day);
+            foreach (var hour in utcHours)
+            {
+                _db.InterviewSlots.Add(new InterviewSlot
+                {
+                    InterviewSlotId = Guid.NewGuid(),
+                    ReviewerId = admin.UserId,
+                    StartsAt = new DateTime(date.Year, date.Month, date.Day, hour, 0, 0, DateTimeKind.Utc),
+                    DurationMinutes = 30,
+                    Status = InterviewSlotStatuses.Available
+                });
+            }
+        }
+
+        await _db.SaveChangesAsync(ct);
+        _logger.LogInformation("Starter interview slots seeded.");
     }
 }

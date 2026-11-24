@@ -103,8 +103,21 @@ try
         {
             Title = "Hamzet Wasl API",
             Version = "v1",
-            Description = "Phase 1 backend contract for Hamzet Wasl (همزة وصل)."
+            Description =
+                "Phase 1 backend contract for Hamzet Wasl (همزة وصل).\n\n" +
+                "**Sign Up Flow (No Token Required):**\n" +
+                "1. `POST /api/v1/auth/register` — validates data & sends phone OTP (does NOT save account to DB yet; returns `registrationTicket`).\n" +
+                "2. `POST /api/v1/auth/register/complete` — verifies OTP with `registrationTicket`, creates the account, and returns `accessToken` + `refreshToken`.\n" +
+                "3. Click **Authorize** above and paste `accessToken` to call protected profile/verification/organization endpoints.\n\n" +
+                "*Note: `/auth/email/*` and `/auth/phone/*` require a Bearer token and are for already logged-in users (e.g. Volunteer identity verification).*"
         });
+
+        var xmlFile = $"{typeof(Program).Assembly.GetName().Name}.xml";
+        var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
+        if (File.Exists(xmlPath))
+        {
+            options.IncludeXmlComments(xmlPath);
+        }
 
         options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
         {
@@ -417,10 +430,8 @@ static string ToCamelCaseField(string key)
     return JsonNamingPolicy.CamelCase.ConvertName(simple);
 }
 
-/// <summary>
-/// Detects the model state error the form reader produces when the request body exceeds
-/// the allowed size. The framework message is never returned to the client.
-/// </summary>
+// Detects the model state error the form reader produces when the request body exceeds
+// the allowed size. The framework message is never returned to the client.
 static bool IsRequestTooLarge(Microsoft.AspNetCore.Mvc.ModelBinding.ModelStateEntry entry) =>
     entry.Errors.Any(error =>
         error.Exception is BadHttpRequestException or InvalidDataException ||

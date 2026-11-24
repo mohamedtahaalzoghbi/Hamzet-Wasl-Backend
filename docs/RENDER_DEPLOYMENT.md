@@ -78,7 +78,8 @@ Server=tcp:<SQL_HOST>,1433;Database=<DB_NAME>;User ID=<DB_USER>;Password=<DB_PAS
 إعدادات اختيارية حسب استخدامك:
 
 - `Jwt__Issuer=HamzetWasl` و`Jwt__Audience=HamzetWasl.Clients` موجودين بالفعل كـ defaults، مش أسرار.
-- `Seed__AdminEmail`, `Seed__AdminPhone`, `Seed__AdminPassword`, `Seed__AdminName`: لأول admin. من غير email/password الـ admin seed بيتخطى الإنشاء، مفيش حساب admin افتراضي مضمون. امسح password seed من إعدادات النشر بعد التحقق من إنشاء الحساب، مش من كلمة سر الحساب نفسه.
+- `Seed__AdminEmail`, `Seed__AdminPhone`, `Seed__AdminPassword`, `Seed__AdminName`: لأول admin. من غير email/password الـ admin seed بيتخطى الإنشاء، مفيش حساب admin افتراضي مضمون. امسح password seed من إعدادات النشر بعد التحقق من إنشاء الحساب، مش من كلمة سر الحساب نفسه. عند وجود admin، يتم بذر مواعيد مقابلات مبدئية تلقائياً (`GET /api/v1/interview-slots`) إذا لم توجد مواعيد متاحة.
+- `Otp__FixedCode`: (اختياري للـ Demo فقط، مثلاً `123456`) لتثبيت كود الـ OTP في بيئة التجربة لأن إرسال SMS/Email حالياً log-only. اتركه فارغاً في الإنتاج الحقيقي حتى تكون الأكواد عشوائية.
 - `Google__ClientId`: لو هتستخدم Google sign-in، استخدم الـ client ID المطابق لتطبيقك.
 - `Cors__AllowAll=false` + `Cors__AllowedOrigins__0=https://<YOUR_WEB_ORIGIN>` لإغلاق wildcard origin. زود `__1` وهكذا لو محتاج.
 - `Swagger__Enabled=false` يقفل Swagger UI وJSON في كل البيئات.
