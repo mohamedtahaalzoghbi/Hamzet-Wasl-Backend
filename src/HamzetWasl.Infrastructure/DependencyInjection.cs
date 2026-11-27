@@ -90,6 +90,7 @@ public static class DependencyInjection
         services.AddScoped<IOrganizationService, OrganizationService>();
         services.AddScoped<IAdminService, AdminService>();
         services.AddScoped<IHelpService, HelpService>();
+        services.AddScoped<IJobService, JobService>();
         services.AddScoped<DatabaseSeeder>();
 
         services.AddHostedService<EvidenceRetentionCleanupService>();

@@ -198,6 +198,8 @@ public static class NotificationTypes
     public const string HelpOfferAccepted = "help_offer_accepted";
     public const string HelpMessageReceived = "help_message_received";
     public const string HelpCompleted = "help_completed";
+    public const string JobApplicationReceived = "job_application_received";
+    public const string JobApplicationStatus = "job_application_status";
 }
 
 public static class DeletionRequestStatuses
