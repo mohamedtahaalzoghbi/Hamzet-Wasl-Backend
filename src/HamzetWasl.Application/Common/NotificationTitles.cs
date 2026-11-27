@@ -20,6 +20,10 @@ public static class NotificationTitles
         NotificationTypes.InterviewCancelled => "تم إلغاء موعد المقابلة",
         NotificationTypes.AccountSuspended => "تم إيقاف الحساب",
         NotificationTypes.AccountReactivated => "تمت إعادة تفعيل الحساب",
+        NotificationTypes.HelpOfferReceived => "عرض مساعدة جديد",
+        NotificationTypes.HelpOfferAccepted => "تم قبول عرضك",
+        NotificationTypes.HelpMessageReceived => "رسالة جديدة",
+        NotificationTypes.HelpCompleted => "تمت المساعدة",
         _ => "إشعار جديد"
     };
 }

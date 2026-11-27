@@ -194,6 +194,10 @@ public static class NotificationTypes
     public const string InterviewCancelled = "interview_cancelled";
     public const string AccountSuspended = "account_suspended";
     public const string AccountReactivated = "account_reactivated";
+    public const string HelpOfferReceived = "help_offer_received";
+    public const string HelpOfferAccepted = "help_offer_accepted";
+    public const string HelpMessageReceived = "help_message_received";
+    public const string HelpCompleted = "help_completed";
 }
 
 public static class DeletionRequestStatuses
