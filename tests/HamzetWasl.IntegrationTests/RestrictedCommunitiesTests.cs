@@ -92,9 +92,9 @@ public class RestrictedCommunitiesTests(ApiFixture fixture)
         var (_, adminComms, _) = await admin.GetAsync<List<CommunityDto>>("/api/v1/social/communities");
         Assert.Contains(adminComms!, c => c.CommunityId == visual.CommunityId);
 
-        // Only the disabled user can join it.
+        // Only the disabled user can join it; for everyone else it does not exist.
         var (sVolJoin, _, _) = await vol.PostAsync<object?>($"/api/v1/social/communities/{visual.CommunityId}/join");
-        Assert.Equal(403, sVolJoin);
+        Assert.Equal(404, sVolJoin);
         var (sDuJoin, _, _) = await du.PostAsync<object?>($"/api/v1/social/communities/{visual.CommunityId}/join");
         Assert.Equal(204, sDuJoin);
 

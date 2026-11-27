@@ -2,7 +2,7 @@
 
 ## Role-restricted communities (v2.7)
 - Communities can be restricted to one role: `POST /api/v1/social/communities` accepts an optional `audienceRole` (e.g. `disabled_user`). Used for the per-disability communities (visual, motor, hearing) that belong to disabled-user accounts only.
-- A restricted community is invisible to every other role: it is hidden from the community list, joining answers 403, its posts never appear in their feed, and direct post/comment/reaction/report access answers 404. The admin still sees everything for moderation.
+- A restricted community is invisible to every other role: it is hidden from the community list, and joining, feed posts, and direct post/comment/reaction/report access all answer 404 for them. The admin still sees everything for moderation (he cannot join or post, like everywhere).
 - DB change: new nullable column `COMMUNITY.audience_role` (+ check constraint). Existing databases are upgraded at startup by `SchemaUpgrades` (idempotent). Migration file: `db/migrations/Hamzet_Wasl_Migration_v2_7_community_audience.sql`. Existing communities stay open (`NULL`).
 
 ## Post images, full profiles, direct chat (v2.6)

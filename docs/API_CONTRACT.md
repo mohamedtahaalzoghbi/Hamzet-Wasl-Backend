@@ -551,8 +551,8 @@ always land in the same conversation.
 
 `POST /social/communities` (admin) accepts an optional `audienceRole` (`disabled_user`,
 `volunteer`, `association`, `company` or `shop`). A restricted community belongs to that role
-only: other roles do not see it in `GET /social/communities`, joining answers 403, its posts
-are filtered out of their feed, and direct post, comment, reaction or report access answers
-404. The admin sees every community for moderation. `CommunityDto.audienceRole` is `null` for
+only: other roles do not see it in `GET /social/communities`, and joining, its posts in their
+feed, and direct post, comment, reaction or report access all answer 404 for them. The admin
+sees every community for moderation. `CommunityDto.audienceRole` is `null` for
 open communities. This powers the per-disability communities (one per need type) that belong
 to disabled-user accounts only.
