@@ -89,6 +89,7 @@ public static class DependencyInjection
         services.AddScoped<IVolunteerService, VolunteerService>();
         services.AddScoped<IOrganizationService, OrganizationService>();
         services.AddScoped<IAdminService, AdminService>();
+        services.AddScoped<IHelpService, HelpService>();
         services.AddScoped<DatabaseSeeder>();
 
         services.AddHostedService<EvidenceRetentionCleanupService>();

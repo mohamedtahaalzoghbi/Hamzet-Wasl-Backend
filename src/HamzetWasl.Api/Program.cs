@@ -235,6 +235,7 @@ try
     {
         options.AddPolicy("DisabledUser", policy => policy.RequireRole("disabled_user"));
         options.AddPolicy("Volunteer", policy => policy.RequireRole("volunteer"));
+        options.AddPolicy("DisabledUserOrVolunteer", policy => policy.RequireRole("disabled_user", "volunteer"));
         options.AddPolicy("Organization", policy => policy.RequireRole("association", "company"));
         options.AddPolicy("Admin", policy => policy.RequireRole("admin"));
     });
