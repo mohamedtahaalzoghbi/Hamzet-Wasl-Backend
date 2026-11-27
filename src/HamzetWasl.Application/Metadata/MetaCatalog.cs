@@ -15,7 +15,8 @@ public static class MetaCatalog
         new("company", "شركة", "تقدم فرص وخدمات"),
         new("disabled_user", "ذوي همم", "ابحث عن وظائف وساعد الآخرين"),
         new("association", "جمعية / منظمة", "شارك بخدمات ومبادرات"),
-        new("volunteer", "متطوع", "شارك بمهاراتك وساعد الآخرين")
+        new("volunteer", "متطوع", "شارك بمهاراتك وساعد الآخرين"),
+        new("shop", "محل / متجر", "اعرض منتجاتك وبيانات التواصل")
     ];
 
     public static readonly IReadOnlyList<BusinessFieldDto> BusinessFields =

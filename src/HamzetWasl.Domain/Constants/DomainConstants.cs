@@ -11,6 +11,7 @@ public static class OrganizationTypes
 {
     public const string Association = "association";
     public const string Company = "company";
+    public const string Shop = "shop";
 }
 
 public static class OrganizationApprovalStatuses

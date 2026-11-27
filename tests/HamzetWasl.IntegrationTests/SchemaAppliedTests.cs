@@ -33,7 +33,7 @@ public class SchemaAppliedTests(ApiFixture fixture)
         var expected = script.Tables.Keys.OrderBy(name => name, StringComparer.OrdinalIgnoreCase).ToList();
 
         Assert.Equal(expected, domainTables);
-        Assert.Equal(62, domainTables.Count);
+        Assert.Equal(63, domainTables.Count);
     }
 
     [Fact]

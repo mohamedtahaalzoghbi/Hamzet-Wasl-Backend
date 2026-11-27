@@ -7,18 +7,19 @@ public static class RoleNames
     public const string Volunteer = "volunteer";
     public const string Association = "association";
     public const string Company = "company";
+    public const string Shop = "shop";
     public const string Admin = "admin";
 
     public static readonly IReadOnlySet<string> All = new HashSet<string>(StringComparer.Ordinal)
     {
-        DisabledUser, Volunteer, Association, Company, Admin
+        DisabledUser, Volunteer, Association, Company, Shop, Admin
     };
 
     /// <summary>Roles that may be chosen through public registration.</summary>
     public static readonly IReadOnlySet<string> PublicRegistration = new HashSet<string>(StringComparer.Ordinal)
     {
-        DisabledUser, Volunteer, Association, Company
+        DisabledUser, Volunteer, Association, Company, Shop
     };
 
-    public static bool IsOrganization(string role) => role is Association or Company;
+    public static bool IsOrganization(string role) => role is Association or Company or Shop;
 }
