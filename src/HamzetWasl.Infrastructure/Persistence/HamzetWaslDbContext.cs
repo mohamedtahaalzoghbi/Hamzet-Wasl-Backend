@@ -31,6 +31,10 @@ public partial class HamzetWaslDbContext : IdentityDbContext<AppUser, IdentityRo
 
     public virtual DbSet<AvailabilitySlot> AvailabilitySlots { get; set; }
 
+    public virtual DbSet<ChatConversation> ChatConversations { get; set; }
+
+    public virtual DbSet<ChatMessage> ChatMessages { get; set; }
+
     public virtual DbSet<Comment> Comments { get; set; }
 
     public virtual DbSet<Community> Communities { get; set; }
@@ -392,6 +396,77 @@ public partial class HamzetWaslDbContext : IdentityDbContext<AppUser, IdentityRo
                 .HasConstraintName("FK_AVAILABILITY_SLOT_volunteer_id");
         });
 
+        modelBuilder.Entity<ChatConversation>(entity =>
+        {
+            entity.HasKey(e => e.ConversationId);
+
+            entity.ToTable("CHAT_CONVERSATION");
+
+            entity.HasIndex(e => e.UserLowId, "IX_CHAT_CONVERSATION_user_low_id");
+
+            entity.HasIndex(e => e.UserHighId, "IX_CHAT_CONVERSATION_user_high_id");
+
+            entity.HasIndex(e => new { e.UserLowId, e.UserHighId }, "UQ_CHAT_CONVERSATION_pair").IsUnique();
+
+            entity.Property(e => e.ConversationId)
+                .HasDefaultValueSql("(newsequentialid())", "DF_CHAT_CONVERSATION_conversation_id")
+                .HasColumnName("conversation_id");
+            entity.Property(e => e.UserLowId).HasColumnName("user_low_id");
+            entity.Property(e => e.UserHighId).HasColumnName("user_high_id");
+            entity.Property(e => e.CreatedAt)
+                .HasPrecision(0)
+                .HasDefaultValueSql("(sysutcdatetime())", "DF_CHAT_CONVERSATION_created_at")
+                .HasColumnName("created_at");
+            entity.Property(e => e.LastMessageAt)
+                .HasPrecision(0)
+                .HasColumnName("last_message_at");
+
+            entity.HasOne(d => d.UserLow).WithMany()
+                .HasForeignKey(d => d.UserLowId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_CHAT_CONVERSATION_user_low_id");
+
+            entity.HasOne(d => d.UserHigh).WithMany()
+                .HasForeignKey(d => d.UserHighId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_CHAT_CONVERSATION_user_high_id");
+        });
+        modelBuilder.Entity<ChatMessage>(entity =>
+        {
+            entity.HasKey(e => e.MessageId);
+
+            entity.ToTable("CHAT_MESSAGE");
+
+            entity.HasIndex(e => e.ConversationId, "IX_CHAT_MESSAGE_conversation_id");
+
+            entity.HasIndex(e => e.SenderId, "IX_CHAT_MESSAGE_sender_id");
+
+            entity.Property(e => e.MessageId)
+                .HasDefaultValueSql("(newsequentialid())", "DF_CHAT_MESSAGE_message_id")
+                .HasColumnName("message_id");
+            entity.Property(e => e.ConversationId).HasColumnName("conversation_id");
+            entity.Property(e => e.SenderId).HasColumnName("sender_id");
+            entity.Property(e => e.Body)
+                .HasMaxLength(2000)
+                .HasColumnName("body");
+            entity.Property(e => e.SentAt)
+                .HasPrecision(0)
+                .HasDefaultValueSql("(sysutcdatetime())", "DF_CHAT_MESSAGE_sent_at")
+                .HasColumnName("sent_at");
+            entity.Property(e => e.ReadAt)
+                .HasPrecision(0)
+                .HasColumnName("read_at");
+
+            entity.HasOne(d => d.Conversation).WithMany(p => p.ChatMessages)
+                .HasForeignKey(d => d.ConversationId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_CHAT_MESSAGE_conversation_id");
+
+            entity.HasOne(d => d.Sender).WithMany()
+                .HasForeignKey(d => d.SenderId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_CHAT_MESSAGE_sender_id");
+        });
         modelBuilder.Entity<Comment>(entity =>
         {
             entity.ToTable("COMMENT");
@@ -451,6 +526,9 @@ public partial class HamzetWaslDbContext : IdentityDbContext<AppUser, IdentityRo
                 .HasMaxLength(200)
                 .HasColumnName("name");
             entity.Property(e => e.Rules).HasColumnName("rules");
+            entity.Property(e => e.AudienceRole)
+                .HasMaxLength(50)
+                .HasColumnName("audience_role");
         });
 
         modelBuilder.Entity<CommunityMembership>(entity =>

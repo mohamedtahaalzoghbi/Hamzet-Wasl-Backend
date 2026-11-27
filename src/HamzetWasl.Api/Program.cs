@@ -241,6 +241,7 @@ try
         options.AddPolicy("Shop", policy => policy.RequireRole("shop"));
         options.AddPolicy("OrganizationOrAdmin", policy => policy.RequireRole("association", "company", "admin"));
         options.AddPolicy("NonAdmin", policy => policy.RequireRole("disabled_user", "volunteer", "association", "company"));
+        options.AddPolicy("Member", policy => policy.RequireRole("disabled_user", "volunteer", "association", "company", "shop"));
         options.AddPolicy("Association", policy => policy.RequireRole("association"));
         options.AddPolicy("Admin", policy => policy.RequireRole("admin"));
     });

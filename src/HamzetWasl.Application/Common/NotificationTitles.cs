@@ -29,6 +29,7 @@ public static class NotificationTitles
         NotificationTypes.SosAlert => "تنبيه طوارئ",
         NotificationTypes.InquiryReceived => "استفسار جديد",
         NotificationTypes.InquiryReplied => "رد على استفسارك",
+        NotificationTypes.ChatMessageReceived => "رسالة جديدة",
         _ => "إشعار جديد"
     };
 }

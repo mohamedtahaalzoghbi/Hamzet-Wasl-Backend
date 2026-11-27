@@ -11,6 +11,7 @@ public interface ISocialService
     Task LeaveAsync(Guid userId, Guid communityId, CancellationToken ct = default);
     Task<PagedResult<PostDto>> GetFeedAsync(Guid userId, Guid? communityId, Guid? authorId, bool followingOnly, int page, int pageSize, CancellationToken ct = default);
     Task<PostDto> CreatePostAsync(Guid userId, CreatePostRequest r, CancellationToken ct = default);
+    Task<PostMediaDto> AddPostMediaAsync(Guid userId, Guid postId, string altText, FileUpload file, CancellationToken ct = default);
     Task<PostDetailDto> GetPostAsync(Guid userId, Guid postId, CancellationToken ct = default);
     Task DeletePostAsync(Guid userId, bool isAdmin, Guid postId, CancellationToken ct = default);
     Task<CommentDto> AddCommentAsync(Guid userId, Guid postId, string body, CancellationToken ct = default);

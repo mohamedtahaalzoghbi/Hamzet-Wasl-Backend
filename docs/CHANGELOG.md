@@ -1,5 +1,17 @@
 # Changelog
 
+## Role-restricted communities (v2.7)
+- Communities can be restricted to one role: `POST /api/v1/social/communities` accepts an optional `audienceRole` (e.g. `disabled_user`). Used for the per-disability communities (visual, motor, hearing) that belong to disabled-user accounts only.
+- A restricted community is invisible to every other role: it is hidden from the community list, and joining, feed posts, and direct post/comment/reaction/report access all answer 404 for them. The admin still sees everything for moderation (he cannot join or post, like everywhere).
+- DB change: new nullable column `COMMUNITY.audience_role` (+ check constraint). Existing databases are upgraded at startup by `SchemaUpgrades` (idempotent). Migration file: `db/migrations/Hamzet_Wasl_Migration_v2_7_community_audience.sql`. Existing communities stay open (`NULL`).
+
+## Post images, full profiles, direct chat (v2.6)
+- Posts can carry images: `POST /api/v1/social/posts/{id}/media` (multipart, author only, up to 4 per post). Alt text is required for every image (the `POST_MEDIA` check constraint already enforces it; screen readers read it). Feed and post detail now return `media: [{mediaId, url, altText}]`.
+- `GET /api/v1/social/users/{id}` now returns the full public profile: bio, city, avatar, memberSince, and a role block — `volunteer` (introduction, governorate, service area, weekly hours, skill level, verification status, skills, interests), `organization` (name, type, field, description, location, website, logo, approval status) for association/company/shop, or `needType` for a person with a disability. Private profiles show identity fields only to other users.
+- New direct chat between accounts under `/api/v1/chat` (all member roles, admin excluded): list conversations, open a conversation with a user, read and send messages, mark read. One conversation per pair; the recipient gets a `chat_message_received` notification (notification centre + SignalR).
+- New tables `CHAT_CONVERSATION` and `CHAT_MESSAGE`. Existing databases are upgraded at startup by `SchemaUpgrades` (idempotent). Migration file: `db/migrations/Hamzet_Wasl_Migration_v2_6_chat.sql`.
+- New `Member` authorization policy: every non-admin role including `shop`.
+
 ## Shops (v2.5)
 - New `shop` account role and `shop` organization type. Shops register and are approved by admin like companies.
 - New table `SHOP_PRODUCT` (name, description, optional price, available). Listing and contact only, no orders or payments.
