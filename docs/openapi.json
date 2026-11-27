@@ -326,93 +326,6 @@
         },
         "type": "object"
       },
-      "AdminUserListItemDto": {
-        "additionalProperties": false,
-        "properties": {
-          "accountStatus": {
-            "enum": [
-              "active",
-              "pending_approval",
-              "suspended"
-            ],
-            "type": "string"
-          },
-          "createdAt": {
-            "format": "date-time",
-            "type": "string"
-          },
-          "displayName": {
-            "nullable": true,
-            "type": "string"
-          },
-          "email": {
-            "nullable": true,
-            "type": "string"
-          },
-          "emailVerified": {
-            "type": "boolean"
-          },
-          "role": {
-            "enum": [
-              "disabled_user",
-              "volunteer",
-              "association",
-              "company",
-              "admin"
-            ],
-            "type": "string"
-          },
-          "userId": {
-            "format": "uuid",
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
-      "AdminUserListItemDtoPagedResult": {
-        "additionalProperties": false,
-        "properties": {
-          "items": {
-            "items": {
-              "$ref": "#/components/schemas/AdminUserListItemDto"
-            },
-            "nullable": true,
-            "type": "array"
-          },
-          "page": {
-            "format": "int32",
-            "type": "integer"
-          },
-          "pageSize": {
-            "format": "int32",
-            "type": "integer"
-          },
-          "totalCount": {
-            "format": "int32",
-            "type": "integer"
-          }
-        },
-        "type": "object"
-      },
-      "AdminUserListItemDtoPagedResultApiResponse": {
-        "additionalProperties": false,
-        "properties": {
-          "data": {
-            "$ref": "#/components/schemas/AdminUserListItemDtoPagedResult"
-          },
-          "error": {
-            "$ref": "#/components/schemas/ApiError"
-          },
-          "success": {
-            "type": "boolean"
-          },
-          "traceId": {
-            "nullable": true,
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
       "ApiError": {
         "additionalProperties": false,
         "properties": {
@@ -739,28 +652,6 @@
             "type": "string"
           },
           "registrationTicket": {
-            "nullable": true,
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
-      "ContactRequest": {
-        "additionalProperties": false,
-        "properties": {
-          "email": {
-            "nullable": true,
-            "type": "string"
-          },
-          "message": {
-            "nullable": true,
-            "type": "string"
-          },
-          "name": {
-            "nullable": true,
-            "type": "string"
-          },
-          "website": {
             "nullable": true,
             "type": "string"
           }
@@ -1120,46 +1011,6 @@
         },
         "type": "object"
       },
-      "InterestRequest": {
-        "additionalProperties": false,
-        "properties": {
-          "city": {
-            "nullable": true,
-            "type": "string"
-          },
-          "email": {
-            "nullable": true,
-            "type": "string"
-          },
-          "name": {
-            "nullable": true,
-            "type": "string"
-          },
-          "note": {
-            "nullable": true,
-            "type": "string"
-          },
-          "phone": {
-            "nullable": true,
-            "type": "string"
-          },
-          "role": {
-            "enum": [
-              "disabled_user",
-              "volunteer",
-              "association",
-              "company",
-              "admin"
-            ],
-            "type": "string"
-          },
-          "website": {
-            "nullable": true,
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
       "InterviewSlotAdminDto": {
         "additionalProperties": false,
         "properties": {
@@ -1259,47 +1110,6 @@
             },
             "nullable": true,
             "type": "array"
-          },
-          "error": {
-            "$ref": "#/components/schemas/ApiError"
-          },
-          "success": {
-            "type": "boolean"
-          },
-          "traceId": {
-            "nullable": true,
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
-      "LandingStats": {
-        "additionalProperties": false,
-        "properties": {
-          "byRole": {
-            "additionalProperties": {
-              "format": "int32",
-              "type": "integer"
-            },
-            "nullable": true,
-            "type": "object"
-          },
-          "interests": {
-            "format": "int32",
-            "type": "integer"
-          },
-          "subscribers": {
-            "format": "int32",
-            "type": "integer"
-          }
-        },
-        "type": "object"
-      },
-      "LandingStatsApiResponse": {
-        "additionalProperties": false,
-        "properties": {
-          "data": {
-            "$ref": "#/components/schemas/LandingStats"
           },
           "error": {
             "$ref": "#/components/schemas/ApiError"
@@ -1808,10 +1618,6 @@
             "nullable": true,
             "type": "string"
           },
-          "ownerUserId": {
-            "format": "uuid",
-            "type": "string"
-          },
           "requestedAt": {
             "format": "date-time",
             "type": "string"
@@ -1876,10 +1682,6 @@
           },
           "organizationType": {
             "nullable": true,
-            "type": "string"
-          },
-          "ownerUserId": {
-            "format": "uuid",
             "type": "string"
           },
           "requestedAt": {
@@ -2416,20 +2218,6 @@
           "score": {
             "format": "double",
             "type": "number"
-          }
-        },
-        "type": "object"
-      },
-      "SubscribeRequest": {
-        "additionalProperties": false,
-        "properties": {
-          "email": {
-            "nullable": true,
-            "type": "string"
-          },
-          "website": {
-            "nullable": true,
-            "type": "string"
           }
         },
         "type": "object"
@@ -4446,170 +4234,6 @@
         ]
       }
     },
-    "/api/v1/admin/users": {
-      "get": {
-        "operationId": "admin_getusers",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "role",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "status",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "search",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "page",
-            "schema": {
-              "default": 1,
-              "format": "int32",
-              "minimum": 1,
-              "type": "integer"
-            }
-          },
-          {
-            "in": "query",
-            "name": "pageSize",
-            "schema": {
-              "default": 20,
-              "format": "int32",
-              "maximum": 100,
-              "minimum": 1,
-              "type": "integer"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AdminUserListItemDtoPagedResultApiResponse"
-                }
-              },
-              "text/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AdminUserListItemDtoPagedResultApiResponse"
-                }
-              }
-            },
-            "description": "OK"
-          },
-          "400": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorApiResponse"
-                }
-              }
-            },
-            "description": "الطلب غير صحيح."
-          },
-          "401": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorApiResponse"
-                }
-              }
-            },
-            "description": "التوكن مفقود أو منتهي."
-          },
-          "403": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorApiResponse"
-                }
-              }
-            },
-            "description": "لا تملك صلاحية تنفيذ الإجراء."
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorApiResponse"
-                }
-              }
-            },
-            "description": "العنصر المطلوب غير موجود."
-          },
-          "409": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorApiResponse"
-                }
-              }
-            },
-            "description": "تعارض في البيانات."
-          },
-          "413": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorApiResponse"
-                }
-              }
-            },
-            "description": "حجم الطلب أو الملف أكبر من المسموح."
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorApiResponse"
-                }
-              }
-            },
-            "description": "القاعدة التجارية تمنع الإجراء."
-          },
-          "429": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorApiResponse"
-                }
-              }
-            },
-            "description": "تم تجاوز عدد الطلبات المسموح."
-          },
-          "500": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorApiResponse"
-                }
-              }
-            },
-            "description": "خطأ غير متوقع."
-          }
-        },
-        "security": [
-          {
-            "Bearer": []
-          }
-        ],
-        "tags": [
-          "Admin"
-        ]
-      }
-    },
     "/api/v1/admin/users/{userId}/suspension": {
       "put": {
         "operationId": "admin_setusersuspension",
@@ -5259,7 +4883,6 @@
             "Bearer": []
           }
         ],
-        "summary": "[*** Required] Changes the password for the currently logged-in user.",
         "tags": [
           "Auth"
         ]
@@ -5368,7 +4991,6 @@
             "Bearer": []
           }
         ],
-        "summary": "[*** Required] Sends an email verification OTP for an ALREADY logged-in user (e.g. Volunteer verification screen). NOT used during Sign Up.",
         "tags": [
           "Auth"
         ]
@@ -5486,7 +5108,6 @@
             "Bearer": []
           }
         ],
-        "summary": "[*** Required] Verifies the 6-digit email OTP for an ALREADY logged-in user. NOT used during Sign Up.",
         "tags": [
           "Auth"
         ]
@@ -5600,7 +5221,6 @@
           }
         },
         "security": [],
-        "summary": "[Public — No Token] Sends a password reset token to the email if an account exists.",
         "tags": [
           "Auth"
         ]
@@ -5726,7 +5346,6 @@
           }
         },
         "security": [],
-        "summary": "[Public — No Token] Sign in or start sign up using a Google ID token.",
         "tags": [
           "Auth"
         ]
@@ -5852,7 +5471,6 @@
           }
         },
         "security": [],
-        "summary": "[Public — No Token] Logs in with email or phone + password and returns JWT access & refresh tokens.",
         "tags": [
           "Auth"
         ]
@@ -5970,7 +5588,6 @@
             "Bearer": []
           }
         ],
-        "summary": "[*** Required] Revokes active refresh tokens and logs out the current user.",
         "tags": [
           "Auth"
         ]
@@ -6088,7 +5705,6 @@
             "Bearer": []
           }
         ],
-        "summary": "[*** Required] Sends a phone verification OTP for an ALREADY logged-in user (e.g. Volunteer verification or phone change). For Sign Up use POST /auth/register.",
         "tags": [
           "Auth"
         ]
@@ -6206,7 +5822,6 @@
             "Bearer": []
           }
         ],
-        "summary": "[*** Required] Verifies the 6-digit phone OTP for an ALREADY logged-in user. For Sign Up use POST /auth/register/complete.",
         "tags": [
           "Auth"
         ]
@@ -6332,7 +5947,6 @@
           }
         },
         "security": [],
-        "summary": "[Public — No Token] Rotates a refresh token into a fresh access & refresh token pair.",
         "tags": [
           "Auth"
         ]
@@ -6458,7 +6072,6 @@
           }
         },
         "security": [],
-        "summary": "[Public — No Token] Sign Up Step 1: Validates registration data and sends phone OTP. Does NOT create the account in DB yet; returns registrationTicket.",
         "tags": [
           "Auth"
         ]
@@ -6584,7 +6197,6 @@
           }
         },
         "security": [],
-        "summary": "[Public — No Token] Sign Up Step 2: Verifies phone OTP using registrationTicket, creates the account in DB, and returns JWT access & refresh tokens.",
         "tags": [
           "Auth"
         ]
@@ -6698,7 +6310,6 @@
           }
         },
         "security": [],
-        "summary": "[Public — No Token] Resends the Sign Up phone OTP for an active registrationTicket.",
         "tags": [
           "Auth"
         ]
@@ -6812,7 +6423,6 @@
           }
         },
         "security": [],
-        "summary": "[Public — No Token] Resets the password using email + reset token + new password.",
         "tags": [
           "Auth"
         ]
@@ -6933,7 +6543,6 @@
             "Bearer": []
           }
         ],
-        "summary": "[*** Required] Returns the current logged-in user's session, role, accountStatus, and verification flags.",
         "tags": [
           "Auth"
         ]
@@ -7242,582 +6851,8 @@
             "Bearer": []
           }
         ],
-        "summary": "[*** — Volunteer] Lists upcoming available interview slots (optional ?date=YYYY-MM-DD filter).",
         "tags": [
           "Volunteer"
-        ]
-      }
-    },
-    "/api/v1/landing/admin/{kind}": {
-      "get": {
-        "operationId": "landing_adminlist",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "kind",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK"
-          },
-          "400": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorApiResponse"
-                }
-              }
-            },
-            "description": "الطلب غير صحيح."
-          },
-          "401": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorApiResponse"
-                }
-              }
-            },
-            "description": "التوكن مفقود أو منتهي."
-          },
-          "403": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorApiResponse"
-                }
-              }
-            },
-            "description": "لا تملك صلاحية تنفيذ الإجراء."
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorApiResponse"
-                }
-              }
-            },
-            "description": "العنصر المطلوب غير موجود."
-          },
-          "409": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorApiResponse"
-                }
-              }
-            },
-            "description": "تعارض في البيانات."
-          },
-          "413": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorApiResponse"
-                }
-              }
-            },
-            "description": "حجم الطلب أو الملف أكبر من المسموح."
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorApiResponse"
-                }
-              }
-            },
-            "description": "القاعدة التجارية تمنع الإجراء."
-          },
-          "429": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorApiResponse"
-                }
-              }
-            },
-            "description": "تم تجاوز عدد الطلبات المسموح."
-          },
-          "500": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorApiResponse"
-                }
-              }
-            },
-            "description": "خطأ غير متوقع."
-          }
-        },
-        "security": [
-          {
-            "Bearer": []
-          }
-        ],
-        "tags": [
-          "Landing"
-        ]
-      }
-    },
-    "/api/v1/landing/contact": {
-      "post": {
-        "operationId": "landing_contact",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ContactRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "OK"
-          },
-          "400": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorApiResponse"
-                }
-              }
-            },
-            "description": "الطلب غير صحيح."
-          },
-          "401": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorApiResponse"
-                }
-              }
-            },
-            "description": "التوكن مفقود أو منتهي."
-          },
-          "403": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorApiResponse"
-                }
-              }
-            },
-            "description": "لا تملك صلاحية تنفيذ الإجراء."
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorApiResponse"
-                }
-              }
-            },
-            "description": "العنصر المطلوب غير موجود."
-          },
-          "409": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorApiResponse"
-                }
-              }
-            },
-            "description": "تعارض في البيانات."
-          },
-          "413": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorApiResponse"
-                }
-              }
-            },
-            "description": "حجم الطلب أو الملف أكبر من المسموح."
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorApiResponse"
-                }
-              }
-            },
-            "description": "القاعدة التجارية تمنع الإجراء."
-          },
-          "429": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorApiResponse"
-                }
-              }
-            },
-            "description": "تم تجاوز عدد الطلبات المسموح."
-          },
-          "500": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorApiResponse"
-                }
-              }
-            },
-            "description": "خطأ غير متوقع."
-          }
-        },
-        "security": [],
-        "tags": [
-          "Landing"
-        ]
-      }
-    },
-    "/api/v1/landing/interest": {
-      "post": {
-        "operationId": "landing_interest",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/InterestRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "OK"
-          },
-          "400": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorApiResponse"
-                }
-              }
-            },
-            "description": "الطلب غير صحيح."
-          },
-          "401": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorApiResponse"
-                }
-              }
-            },
-            "description": "التوكن مفقود أو منتهي."
-          },
-          "403": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorApiResponse"
-                }
-              }
-            },
-            "description": "لا تملك صلاحية تنفيذ الإجراء."
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorApiResponse"
-                }
-              }
-            },
-            "description": "العنصر المطلوب غير موجود."
-          },
-          "409": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorApiResponse"
-                }
-              }
-            },
-            "description": "تعارض في البيانات."
-          },
-          "413": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorApiResponse"
-                }
-              }
-            },
-            "description": "حجم الطلب أو الملف أكبر من المسموح."
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorApiResponse"
-                }
-              }
-            },
-            "description": "القاعدة التجارية تمنع الإجراء."
-          },
-          "429": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorApiResponse"
-                }
-              }
-            },
-            "description": "تم تجاوز عدد الطلبات المسموح."
-          },
-          "500": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorApiResponse"
-                }
-              }
-            },
-            "description": "خطأ غير متوقع."
-          }
-        },
-        "security": [],
-        "tags": [
-          "Landing"
-        ]
-      }
-    },
-    "/api/v1/landing/stats": {
-      "get": {
-        "operationId": "landing_stats",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/LandingStatsApiResponse"
-                }
-              },
-              "text/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/LandingStatsApiResponse"
-                }
-              }
-            },
-            "description": "OK"
-          },
-          "400": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorApiResponse"
-                }
-              }
-            },
-            "description": "الطلب غير صحيح."
-          },
-          "401": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorApiResponse"
-                }
-              }
-            },
-            "description": "التوكن مفقود أو منتهي."
-          },
-          "403": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorApiResponse"
-                }
-              }
-            },
-            "description": "لا تملك صلاحية تنفيذ الإجراء."
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorApiResponse"
-                }
-              }
-            },
-            "description": "العنصر المطلوب غير موجود."
-          },
-          "409": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorApiResponse"
-                }
-              }
-            },
-            "description": "تعارض في البيانات."
-          },
-          "413": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorApiResponse"
-                }
-              }
-            },
-            "description": "حجم الطلب أو الملف أكبر من المسموح."
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorApiResponse"
-                }
-              }
-            },
-            "description": "القاعدة التجارية تمنع الإجراء."
-          },
-          "429": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorApiResponse"
-                }
-              }
-            },
-            "description": "تم تجاوز عدد الطلبات المسموح."
-          },
-          "500": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorApiResponse"
-                }
-              }
-            },
-            "description": "خطأ غير متوقع."
-          }
-        },
-        "security": [],
-        "tags": [
-          "Landing"
-        ]
-      }
-    },
-    "/api/v1/landing/subscribe": {
-      "post": {
-        "operationId": "landing_subscribe",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/SubscribeRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "OK"
-          },
-          "400": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorApiResponse"
-                }
-              }
-            },
-            "description": "الطلب غير صحيح."
-          },
-          "401": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorApiResponse"
-                }
-              }
-            },
-            "description": "التوكن مفقود أو منتهي."
-          },
-          "403": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorApiResponse"
-                }
-              }
-            },
-            "description": "لا تملك صلاحية تنفيذ الإجراء."
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorApiResponse"
-                }
-              }
-            },
-            "description": "العنصر المطلوب غير موجود."
-          },
-          "409": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorApiResponse"
-                }
-              }
-            },
-            "description": "تعارض في البيانات."
-          },
-          "413": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorApiResponse"
-                }
-              }
-            },
-            "description": "حجم الطلب أو الملف أكبر من المسموح."
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorApiResponse"
-                }
-              }
-            },
-            "description": "القاعدة التجارية تمنع الإجراء."
-          },
-          "429": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorApiResponse"
-                }
-              }
-            },
-            "description": "تم تجاوز عدد الطلبات المسموح."
-          },
-          "500": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorApiResponse"
-                }
-              }
-            },
-            "description": "خطأ غير متوقع."
-          }
-        },
-        "security": [],
-        "tags": [
-          "Landing"
         ]
       }
     },
@@ -8541,7 +7576,6 @@
             "Bearer": []
           }
         ],
-        "summary": "Creates a pending account-deletion request. The admin queue\n(`GET /api/v1/admin/deletion-requests`) resolves it later.",
         "tags": [
           "Profile"
         ]
@@ -8802,7 +7836,6 @@
             "Bearer": []
           }
         ],
-        "summary": "Notification centre: newest first, paged like every other list endpoint.",
         "tags": [
           "Profile"
         ]
@@ -8927,7 +7960,6 @@
             "Bearer": []
           }
         ],
-        "summary": "Marks one notification as read; idempotent and scoped to the caller.",
         "tags": [
           "Profile"
         ]
@@ -9048,7 +8080,6 @@
             "Bearer": []
           }
         ],
-        "summary": "[*** — Organization] Returns the organization profile, uploaded documents, missingDocuments, and canSubmit flag.",
         "tags": [
           "Organization"
         ]
@@ -9176,7 +8207,6 @@
             "Bearer": []
           }
         ],
-        "summary": "[*** — Organization] Updates organization details (Screen: معلومات الشركة). Include name from signup/GET response.",
         "tags": [
           "Organization"
         ]
@@ -9317,7 +8347,6 @@
             "Bearer": []
           }
         ],
-        "summary": "[*** — Organization] Uploads the optional organization cover image (JPG/PNG up to 5 MB).",
         "tags": [
           "Organization"
         ]
@@ -9468,7 +8497,6 @@
             "Bearer": []
           }
         ],
-        "summary": "[*** — Organization] Uploads a verification document (commercial_register, tax_card, address_proof, or license; PDF/image up to 10 MB).",
         "tags": [
           "Organization"
         ]
@@ -9609,7 +8637,6 @@
             "Bearer": []
           }
         ],
-        "summary": "[*** — Organization] Uploads the required organization logo (JPG/PNG up to 5 MB).",
         "tags": [
           "Organization"
         ]
@@ -9730,7 +8757,6 @@
             "Bearer": []
           }
         ],
-        "summary": "[*** — Organization] Returns the latest admin review status and any decision notes.",
         "tags": [
           "Organization"
         ]
@@ -9851,7 +8877,6 @@
             "Bearer": []
           }
         ],
-        "summary": "[*** — Organization] Submits the organization for admin review once profile, logo, and the 3 required documents are uploaded.",
         "tags": [
           "Organization"
         ]
@@ -10736,7 +9761,6 @@
             "Bearer": []
           }
         ],
-        "summary": "[*** — Volunteer] Returns the full verification checklist (steps, currentStep, canBookInterview, uploadedEvidenceTypes, socialLinks).",
         "tags": [
           "Volunteer"
         ]
@@ -10871,7 +9895,6 @@
             "Bearer": []
           }
         ],
-        "summary": "[*** — Volunteer] Uploads identity verification evidence (national_id_front, national_id_back, or face_photo). Requires email and phone verified first.",
         "tags": [
           "Volunteer"
         ]
@@ -11119,7 +10142,6 @@
             "Bearer": []
           }
         ],
-        "summary": "[*** — Volunteer] Books an interview slot once all prior verification steps are completed.",
         "tags": [
           "Volunteer"
         ]
@@ -11364,7 +10386,6 @@
             "Bearer": []
           }
         ],
-        "summary": "[*** — Volunteer] Saves social media profile URLs (facebook, linkedin, instagram — full https:// URLs).",
         "tags": [
           "Volunteer"
         ]
@@ -11485,7 +10506,6 @@
             "Bearer": []
           }
         ],
-        "summary": "[*** — Volunteer] Returns the volunteer's governorate, serviceArea, map coordinates, and serviceRadiusKm.",
         "tags": [
           "Volunteer"
         ]
@@ -11613,7 +10633,6 @@
             "Bearer": []
           }
         ],
-        "summary": "[*** — Volunteer] Saves volunteer governorate, serviceArea, latitude/longitude, and serviceRadiusKm (1–100 km).",
         "tags": [
           "Volunteer"
         ]
@@ -11734,7 +10753,6 @@
             "Bearer": []
           }
         ],
-        "summary": "[*** — Volunteer] Returns the volunteer profile and current verification status.",
         "tags": [
           "Volunteer"
         ]
@@ -11862,7 +10880,6 @@
             "Bearer": []
           }
         ],
-        "summary": "[*** — Volunteer] Saves volunteer bio, helpMode (online_only / online_and_field), skillLevel, weeklyHours, experienceNotes, and skillIds.",
         "tags": [
           "Volunteer"
         ]
@@ -12949,9 +11966,6 @@
     },
     {
       "name": "Profile"
-    },
-    {
-      "name": "Volunteer"
     },
     {
       "name": "Volunteer"
