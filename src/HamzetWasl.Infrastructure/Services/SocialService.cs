@@ -7,10 +7,11 @@ using Microsoft.EntityFrameworkCore;
 
 namespace HamzetWasl.Infrastructure.Services;
 
-public sealed class SocialService(HamzetWaslDbContext db, IClock clock) : ISocialService
+public sealed class SocialService(HamzetWaslDbContext db, IFileStorage storage, IClock clock) : ISocialService
 {
     private const string Published = "approved";
     private const string Hidden = "hidden";
+    private const int MaxMediaPerPost = 4;
     private static readonly string[] Reactions = ["like", "support", "thanks"];
 
     private static AppException Invalid(string field, string message) =>
@@ -89,6 +90,30 @@ public sealed class SocialService(HamzetWaslDbContext db, IClock clock) : ISocia
         db.Posts.Add(p);
         await db.SaveChangesAsync(ct);
         return (await ToDtosAsync([p], userId, ct))[0];
+    }
+
+    public async Task<PostMediaDto> AddPostMediaAsync(Guid userId, Guid postId, string altText, FileUpload file, CancellationToken ct = default)
+    {
+        // The POST_MEDIA check constraint forces alternative text on every image; it is
+        // what screen readers read, so it is required at the API level as well.
+        if (string.IsNullOrWhiteSpace(altText)) throw Invalid("altText", "اكتب وصف للصورة (نص بديل).");
+        var post = await db.Posts.FirstOrDefaultAsync(x => x.PostId == postId && x.ModerationStatus == Published, ct) ?? throw AppException.NotFound();
+        if (post.AuthorId != userId) throw AppException.Forbidden(message: "صاحب البوست بس اللي يقدر يضيف صور.");
+        var count = await db.PostMedia.CountAsync(m => m.PostId == postId, ct);
+        if (count >= MaxMediaPerPost) throw Invalid("file", $"أقصى عدد صور للبوست {MaxMediaPerPost}.");
+
+        var stored = await storage.SaveAsync(file, FileCategory.PublicImage, userId, ct);
+        var media = new PostMedium
+        {
+            MediaId = Guid.NewGuid(),
+            PostId = postId,
+            MediaType = "image",
+            StorageKey = stored.Key,
+            AlternativeText = altText.Trim()
+        };
+        db.PostMedia.Add(media);
+        await db.SaveChangesAsync(ct);
+        return new PostMediaDto(media.MediaId, storage.GetPublicUrl(stored.Key), media.AlternativeText);
     }
 
     public async Task<PostDetailDto> GetPostAsync(Guid userId, Guid postId, CancellationToken ct = default)
@@ -173,12 +198,55 @@ public sealed class SocialService(HamzetWaslDbContext db, IClock clock) : ISocia
 
     public async Task<PublicProfileDto> GetProfileAsync(Guid viewerId, Guid userId, CancellationToken ct = default)
     {
-        var u = await db.UserAccounts.Where(x => x.UserId == userId).Select(x => new { x.UserId, Role = x.Role.RoleName }).FirstOrDefaultAsync(ct) ?? throw AppException.NotFound();
-        var names = await NamesAsync([userId], ct);
-        return new PublicProfileDto(userId, names.GetValueOrDefault(userId, "مستخدم"), u.Role,
+        var u = await db.UserAccounts.Where(x => x.UserId == userId)
+            .Select(x => new { x.UserId, x.CreatedAt, Role = x.Role.RoleName })
+            .FirstOrDefaultAsync(ct) ?? throw AppException.NotFound();
+        var profile = await db.UserProfiles.FirstOrDefaultAsync(p => p.UserId == userId, ct);
+        var isMe = viewerId == userId;
+        var isFollower = !isMe && await db.UserFollows.AnyAsync(f => f.FollowerId == viewerId && f.FollowedId == userId, ct);
+        // A non-public profile shows the identity fields only; bio, city, avatar and the
+        // role-specific blocks stay between the owner and the audience he chose.
+        var visibility = profile?.Visibility ?? "public";
+        var visible = isMe || visibility == "public" || (visibility == "followers" && isFollower)
+            || visibility is not ("public" or "followers" or "private");
+
+        VolunteerProfileDto? volunteer = null;
+        OrganizationProfileDto? organization = null;
+        string? needType = null;
+        if (visible && u.Role == "volunteer")
+        {
+            var vp = await db.VolunteerProfiles.FirstOrDefaultAsync(v => v.UserId == userId, ct);
+            var skills = await db.UserAccounts.Where(a => a.UserId == userId).SelectMany(a => a.Skills).Select(s => s.Name).ToListAsync(ct);
+            var interests = await db.UserAccounts.Where(a => a.UserId == userId).SelectMany(a => a.Interests).Select(i => i.Name).ToListAsync(ct);
+            if (vp is not null || skills.Count > 0 || interests.Count > 0)
+            {
+                volunteer = new VolunteerProfileDto(vp?.Introduction, vp?.Governorate, vp?.ServiceArea ?? "", vp?.WeeklyHours ?? 0,
+                    vp?.SkillLevel ?? "", vp?.VerificationStatus ?? "", skills, interests);
+            }
+        }
+        else if (visible && u.Role is "association" or "company" or "shop")
+        {
+            var org = await db.Organizations.FirstOrDefaultAsync(o => o.OwnerUserId == userId, ct);
+            if (org is not null)
+            {
+                organization = new OrganizationProfileDto(org.OrganizationId, org.Name, org.OrganizationType, org.Field, org.Description,
+                    org.Governorate, org.City, org.Website,
+                    string.IsNullOrWhiteSpace(org.LogoStorageKey) ? null : storage.GetPublicUrl(org.LogoStorageKey),
+                    org.ApprovalStatus);
+            }
+        }
+        else if (visible && u.Role == "disabled_user")
+        {
+            needType = await db.AccessibilityProfiles.Where(a => a.UserId == userId).Select(a => a.NeedType.Name).FirstOrDefaultAsync(ct);
+        }
+
+        return new PublicProfileDto(userId, profile?.DisplayName ?? "مستخدم", u.Role,
             await db.UserFollows.CountAsync(f => f.FollowedId == userId, ct), await db.UserFollows.CountAsync(f => f.FollowerId == userId, ct),
             await db.Posts.CountAsync(p => p.AuthorId == userId && p.ModerationStatus == Published, ct),
-            await db.UserFollows.AnyAsync(f => f.FollowerId == viewerId && f.FollowedId == userId, ct), viewerId == userId);
+            isFollower, isMe,
+            visible ? profile?.Bio : null, visible ? profile?.City : null,
+            visible && !string.IsNullOrWhiteSpace(profile?.AvatarStorageKey) ? storage.GetPublicUrl(profile.AvatarStorageKey) : null,
+            u.CreatedAt, volunteer, organization, needType);
     }
 
     public async Task<IReadOnlyList<ContentReportDto>> GetReportsAsync(string? status, CancellationToken ct = default)
@@ -222,7 +290,11 @@ public sealed class SocialService(HamzetWaslDbContext db, IClock clock) : ISocia
         var rc = await db.PostReactions.Where(r => ids.Contains(r.PostId)).GroupBy(r => r.PostId).Select(g => new { g.Key, N = g.Count() }).ToDictionaryAsync(x => x.Key, x => x.N, ct);
         var cc = await db.Comments.Where(c => ids.Contains(c.PostId) && c.ModerationStatus == Published).GroupBy(c => c.PostId).Select(g => new { g.Key, N = g.Count() }).ToDictionaryAsync(x => x.Key, x => x.N, ct);
         var mine = await db.PostReactions.Where(r => ids.Contains(r.PostId) && r.UserId == viewer).ToDictionaryAsync(r => r.PostId, r => r.ReactionType, ct);
+        var media = await db.PostMedia.Where(m => ids.Contains(m.PostId)).ToListAsync(ct);
+        var mediaByPost = media.GroupBy(m => m.PostId).ToDictionary(g => g.Key,
+            g => (IReadOnlyList<PostMediaDto>)g.Select(m => new PostMediaDto(m.MediaId, storage.GetPublicUrl(m.StorageKey), m.AlternativeText)).ToList());
         return rows.Select(p => new PostDto(p.PostId, p.AuthorId, names.GetValueOrDefault(p.AuthorId, "مستخدم"), roles.GetValueOrDefault(p.AuthorId, ""), p.CommunityId,
-            cnames.GetValueOrDefault(p.CommunityId, ""), p.Body, p.CreatedAt, rc.GetValueOrDefault(p.PostId), cc.GetValueOrDefault(p.PostId), mine.GetValueOrDefault(p.PostId))).ToList();
+            cnames.GetValueOrDefault(p.CommunityId, ""), p.Body, p.CreatedAt, rc.GetValueOrDefault(p.PostId), cc.GetValueOrDefault(p.PostId), mine.GetValueOrDefault(p.PostId),
+            mediaByPost.GetValueOrDefault(p.PostId, []))).ToList();
     }
 }

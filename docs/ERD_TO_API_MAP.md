@@ -96,6 +96,9 @@ Their planned gating (already encoded in `BusinessRules`):
 
 ## Table count check
 
-The schema defines exactly 62 tables. The mapping above covers all of them, and
+The schema defines exactly 65 tables (v2.6 added `CHAT_CONVERSATION` and `CHAT_MESSAGE`,
+exposed under `/api/v1/chat`; phase 6 exposed the social tables — `COMMUNITY`, `POST`,
+`POST_MEDIA`, `POST_REACTION`, `COMMENT`, `USER_FOLLOW`, `CONTENT_REPORT` — under
+`/api/v1/social`). The mapping above covers the phase-1 tables, and
 `SchemaMatchesSqlTests` (unit) plus `SchemaAppliedTests` (integration) fail the build if the
 EF model or the applied database drifts from `Hamzet_Wasl_Schema_v2.sql`.

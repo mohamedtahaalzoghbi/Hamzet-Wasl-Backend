@@ -3,6 +3,7 @@ using HamzetWasl.Application.Contracts.Social;
 using HamzetWasl.Application.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace HamzetWasl.Api.Controllers;
 
@@ -43,6 +44,18 @@ public sealed class SocialController(ISocialService social) : ApiControllerBase
     [Authorize(Policy = "NonAdmin")]
     public async Task<ActionResult<ApiResponse<PostDto>>> CreatePost([FromBody] CreatePostRequest request, CancellationToken ct) =>
         CreatedEnvelope(await social.CreatePostAsync(CurrentUserId, request, ct));
+
+    /// <summary>[Bearer Token — not admin] Adds an image to the caller's post (up to 4). Alt text is required: screen readers read it.</summary>
+    [HttpPost("posts/{id:guid}/media")]
+    [Authorize(Policy = "NonAdmin")]
+    [EnableRateLimiting("uploads")]
+    [RequestSizeLimit(6 * 1024 * 1024)]
+    public async Task<ActionResult<ApiResponse<PostMediaDto>>> AddMedia(Guid id, IFormFile file, [FromForm] string altText, CancellationToken ct)
+    {
+        await using var stream = file.OpenReadStream();
+        using var upload = new FileUpload(stream, file.FileName, file.ContentType, file.Length);
+        return CreatedEnvelope(await social.AddPostMediaAsync(CurrentUserId, id, altText, upload, ct));
+    }
 
     /// <summary>[Bearer Token] A post with its comments.</summary>
     [HttpGet("posts/{id:guid}")]

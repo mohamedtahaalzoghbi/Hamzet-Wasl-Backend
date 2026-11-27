@@ -204,6 +204,7 @@ public static class NotificationTypes
     public const string SosAlert = "sos_alert";
     public const string InquiryReceived = "inquiry_received";
     public const string InquiryReplied = "inquiry_replied";
+    public const string ChatMessageReceived = "chat_message_received";
 }
 
 public static class DeletionRequestStatuses

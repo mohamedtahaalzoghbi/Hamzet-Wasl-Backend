@@ -92,6 +92,7 @@ public static class DependencyInjection
         services.AddScoped<IHelpService, HelpService>();
         services.AddScoped<IJobService, JobService>();
         services.AddScoped<ISocialService, SocialService>();
+        services.AddScoped<IChatService, ChatService>();
         services.AddScoped<IShopService, ShopService>();
         services.AddScoped<IDirectoryService, DirectoryService>();
         services.AddScoped<IPlaceService, PlaceService>();

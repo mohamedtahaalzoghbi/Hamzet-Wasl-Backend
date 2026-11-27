@@ -505,3 +505,44 @@ The extension, the content type and the magic bytes are all validated; a rejecte
   committed to `docs/openapi.json` with a CI drift check.
 - **Rate limiting**: the authentication, OTP and upload endpoints are limited per identity; the
   answer carries `Retry-After`.
+
+## 13. Social: post media, full profiles, direct chat (v2.6)
+
+### Post images
+
+| Method | Path | Description |
+|---|---|---|
+| POST | `/social/posts/{id}/media` | multipart `file` (PNG/JPG ≤ 5 MB) + form field `altText` (required). Author only, up to 4 images per post. 201 → `{mediaId, url, altText}` |
+
+`altText` is required for every image (the `POST_MEDIA` check constraint enforces it in the
+database); it is the text screen readers announce. Every `PostDto` (feed, post detail, create
+response) carries `media: [{mediaId, url, altText}]`, empty when the post has no images.
+
+### Full public profile
+
+`GET /social/users/{id}` keeps its original fields and adds:
+
+| Field | Content |
+|---|---|
+| `bio`, `city`, `avatarUrl`, `memberSince` | From the owner's profile |
+| `volunteer` | `{introduction, governorate, serviceArea, weeklyHours, skillLevel, verificationStatus, skills[], interests[]}` when the account is a volunteer, else `null` |
+| `organization` | `{organizationId, name, organizationType, field, description, governorate, city, website, logoUrl, approvalStatus}` for association/company/shop, else `null` |
+| `needType` | The need type of a person with a disability (`visual\|motor\|hearing`), else `null` |
+
+Visibility rules: `public` shows everything; `followers` shows the extra fields to followers
+(and the owner) only; `private` shows them to the owner only. Identity fields (name, role,
+counts, follow state) are always visible.
+
+### Direct chat (`Member` policy: every role except `admin`)
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/chat/conversations` | The caller's conversations, newest activity first: `{conversationId, other:{userId, displayName, role, avatarUrl}, lastMessageBody, lastMessageSenderId, lastMessageAt, unreadCount, createdAt}` (200) |
+| POST | `/chat/conversations` | `{userId}` opens the direct conversation with that user, creating it on first contact; the same pair always returns the same conversation (200). 400 when `userId` is the caller, 404 when the user does not exist |
+| GET | `/chat/conversations/{id}/messages` | Paged, newest first (`?page=1&pageSize=20`); members only, others get 404 (200) |
+| POST | `/chat/conversations/{id}/messages` | `{body}` (≤ 2000 chars) → 201 `{messageId, senderId, senderName, body, sentAt, readAt, isMine}`; the other side gets a `chat_message_received` notification (centre + SignalR) |
+| PUT | `/chat/conversations/{id}/read` | Marks everything from the other side read; idempotent (204) |
+
+One conversation exists per pair of accounts: the pair is stored ordered
+(`user_low_id < user_high_id`) under a unique index, so either side can start it and both
+always land in the same conversation.
