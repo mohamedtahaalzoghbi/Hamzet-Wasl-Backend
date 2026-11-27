@@ -3244,7 +3244,7 @@
     }
   },
   "info": {
-    "description": "Phase 1 backend contract for Hamzet Wasl (همزة وصل).\n\n**Sign Up Flow (No Token Required):**\n1. `POST /api/v1/auth/register` — validates data & sends phone OTP (does NOT save account to DB yet; returns `registrationTicket`).\n2. `POST /api/v1/auth/register/complete` — verifies OTP with `registrationTicket`, creates the account, and returns `accessToken` + `refreshToken`.\n3. Click **Authorize** above and paste `accessToken` to call protected profile/verification/organization endpoints.\n\n*Note: `/auth/email/*` and `/auth/phone/*` require a *** and are for already logged-in users (e.g. Volunteer identity verification).*",
+    "description": "Phase 1 backend contract for Hamzet Wasl (همزة وصل).",
     "title": "Hamzet Wasl API",
     "version": "v1"
   },
@@ -12942,9 +12942,6 @@
       "name": "Files"
     },
     {
-      "name": "Landing"
-    },
-    {
       "name": "Meta"
     },
     {
@@ -12952,6 +12949,9 @@
     },
     {
       "name": "Profile"
+    },
+    {
+      "name": "Volunteer"
     },
     {
       "name": "Volunteer"
