@@ -81,7 +81,7 @@ public class ShopsFlowTests(ApiFixture fixture)
     private async Task<HttpClient> ApprovedShop(HttpClient admin, string name)
     {
         var shop = Authed((await Register("shop", name, Email("sh"), Phone())).AccessToken);
-        await shop.PutAsync<OrganizationResponse>("/api/v1/me/organization", new { name, field = "retail", description = "محل تجربة", governorate = "cairo", city = "nasr_city", website = "https://example.com", employeeCountRange = "1-10", contactInformation = "0100000000" });
+        await shop.PutAsync<OrganizationResponse>("/api/v1/me/organization", new { name, field = "technology", description = "محل تجربة", governorate = "cairo", city = "nasr_city", website = "https://example.com", employeeCountRange = "11-50", contactInformation = "0100000000" });
         await shop.UploadAsync<OrganizationResponse>("/api/v1/me/organization/logo", "logo.png", new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A }, "image/png");
         var pdf = "%PDF-1.4\n%Test document\n%%EOF"u8.ToArray();
         foreach (var t in new[] { "commercial_register", "tax_card", "address_proof" })
