@@ -27,13 +27,13 @@ public sealed class JobsController(IJobService jobs) : ApiControllerBase
 
     /// <summary>[Bearer Token — Organization, approved] Publishes a job.</summary>
     [HttpPost]
-    [Authorize(Policy = "Organization")]
+    [Authorize(Policy = "JobPoster")]
     public async Task<ActionResult<ApiResponse<JobDto>>> Create([FromBody] CreateJobRequest request, CancellationToken ct) =>
         CreatedEnvelope(await jobs.CreateAsync(CurrentUserId, request, ct));
 
     /// <summary>[Bearer Token — Organization] The organization's own jobs with application counts.</summary>
     [HttpGet("mine")]
-    [Authorize(Policy = "Organization")]
+    [Authorize(Policy = "JobPoster")]
     public async Task<ActionResult<ApiResponse<IReadOnlyList<JobDto>>>> Mine(CancellationToken ct) =>
         Ok(Envelope(await jobs.MineAsync(CurrentUserId, ct)));
 
@@ -55,12 +55,12 @@ public sealed class JobsController(IJobService jobs) : ApiControllerBase
 
     /// <summary>[Bearer Token — Organization owner] Applications of a job.</summary>
     [HttpGet("{id:guid}/applications")]
-    [Authorize(Policy = "Organization")]
+    [Authorize(Policy = "JobPoster")]
     public async Task<ActionResult<ApiResponse<IReadOnlyList<ApplicationDto>>>> Applications(Guid id, CancellationToken ct) =>
         Ok(Envelope(await jobs.JobApplicationsAsync(CurrentUserId, id, ct)));
 
     /// <summary>[Bearer Token — Organization owner] Moves an application (reviewing|interview|accepted|rejected).</summary>
     [HttpPut("applications/{applicationId:guid}/status")]
-    [Authorize(Policy = "Organization")]
+    [Authorize(Policy = "JobPoster")]
     public async Task<IActionResult> ChangeStatus(Guid applicationId, [FromBody] ChangeApplicationStatusRequest request, CancellationToken ct) { await jobs.ChangeStatusAsync(CurrentUserId, applicationId, request.Status, ct); return NoContent(); }
 }

@@ -13,7 +13,7 @@ public sealed class ApiEnumSchemaFilter : ISchemaFilter
     private static readonly IReadOnlyDictionary<string, string[]> Enums =
         new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase)
         {
-            ["role"] = ["disabled_user", "volunteer", "association", "company", "admin"],
+            ["role"] = ["disabled_user", "volunteer", "association", "company", "shop", "admin"],
             ["needType"] = ["visual", "motor", "hearing"],
             ["needTypes"] = ["visual", "motor", "hearing"],
             ["theme"] = ["system", "light", "dark", "high_contrast"],

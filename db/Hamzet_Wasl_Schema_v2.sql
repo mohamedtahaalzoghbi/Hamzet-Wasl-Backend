@@ -26,7 +26,7 @@ CREATE TABLE dbo.ACCOUNT_ROLE (
     role_name NVARCHAR(50) NOT NULL,
     CONSTRAINT PK_ACCOUNT_ROLE PRIMARY KEY (role_id),
     CONSTRAINT UQ_ACCOUNT_ROLE_role_name UNIQUE (role_name),
-    CONSTRAINT CK_ACCOUNT_ROLE_role_name CHECK (role_name IN (N'disabled_user', N'volunteer', N'association', N'company', N'admin'))
+    CONSTRAINT CK_ACCOUNT_ROLE_role_name CHECK (role_name IN (N'disabled_user', N'volunteer', N'association', N'company', N'shop', N'admin'))
 );
 GO
 
@@ -394,9 +394,24 @@ CREATE TABLE dbo.ORGANIZATION (
     approval_status NVARCHAR(50) NOT NULL,
     CONSTRAINT PK_ORGANIZATION PRIMARY KEY (organization_id),
     CONSTRAINT UQ_ORGANIZATION_owner_user_id UNIQUE (owner_user_id),
-    CONSTRAINT CK_ORGANIZATION_organization_type CHECK (organization_type IN (N'association', N'company')),
+    CONSTRAINT CK_ORGANIZATION_organization_type CHECK (organization_type IN (N'association', N'company', N'shop')),
     CONSTRAINT CK_ORGANIZATION_approval_status CHECK (approval_status IN (N'pending', N'approved', N'rejected'))
 );
+GO
+
+CREATE TABLE dbo.SHOP_PRODUCT (
+    product_id UNIQUEIDENTIFIER NOT NULL CONSTRAINT DF_SHOP_PRODUCT_product_id DEFAULT NEWSEQUENTIALID(),
+    organization_id UNIQUEIDENTIFIER NOT NULL,
+    name NVARCHAR(200) NOT NULL,
+    description NVARCHAR(MAX) NULL,
+    price DECIMAL(12,2) NULL,
+    available BIT NOT NULL CONSTRAINT DF_SHOP_PRODUCT_available DEFAULT 1,
+    created_at DATETIME2(0) NOT NULL CONSTRAINT DF_SHOP_PRODUCT_created_at DEFAULT SYSUTCDATETIME(),
+    CONSTRAINT PK_SHOP_PRODUCT PRIMARY KEY (product_id),
+    CONSTRAINT FK_SHOP_PRODUCT_organization_id FOREIGN KEY (organization_id) REFERENCES dbo.ORGANIZATION(organization_id)
+);
+GO
+CREATE INDEX IX_SHOP_PRODUCT_organization_id ON dbo.SHOP_PRODUCT(organization_id);
 GO
 
 CREATE TABLE dbo.ORGANIZATION_DOCUMENT (
@@ -890,7 +905,7 @@ CREATE INDEX IX_ASSISTANT_LOG_user_id ON dbo.ASSISTANT_LOG(user_id);
 GO
 
 -- ---------- Seed data (from the proposal) ----------
-INSERT INTO dbo.ACCOUNT_ROLE (role_name) VALUES (N'disabled_user'), (N'volunteer'), (N'association'), (N'company'), (N'admin');
+INSERT INTO dbo.ACCOUNT_ROLE (role_name) VALUES (N'disabled_user'), (N'volunteer'), (N'association'), (N'company'), (N'shop'), (N'admin');
 INSERT INTO dbo.NEED_TYPE (name) VALUES (N'visual'), (N'motor'), (N'hearing');
 INSERT INTO dbo.FACILITY_TYPE (name) VALUES (N'ramp'), (N'elevator'), (N'accessible_restroom'), (N'visual_alarm'), (N'sign_language');
 GO

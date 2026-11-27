@@ -11,7 +11,8 @@ public static class BusinessRules
 {
     public static bool OrganizationTypeMatchesRole(string roleName, string organizationType) =>
         (roleName == RoleNames.Association && organizationType == OrganizationTypes.Association) ||
-        (roleName == RoleNames.Company && organizationType == OrganizationTypes.Company);
+        (roleName == RoleNames.Company && organizationType == OrganizationTypes.Company) ||
+        (roleName == RoleNames.Shop && organizationType == OrganizationTypes.Shop);
 
     public static bool CanOwnDirectoryItem(string roleName) => roleName == RoleNames.Association;
 

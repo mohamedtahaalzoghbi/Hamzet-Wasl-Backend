@@ -236,7 +236,9 @@ try
         options.AddPolicy("DisabledUser", policy => policy.RequireRole("disabled_user"));
         options.AddPolicy("Volunteer", policy => policy.RequireRole("volunteer"));
         options.AddPolicy("DisabledUserOrVolunteer", policy => policy.RequireRole("disabled_user", "volunteer"));
-        options.AddPolicy("Organization", policy => policy.RequireRole("association", "company"));
+        options.AddPolicy("Organization", policy => policy.RequireRole("association", "company", "shop"));
+        options.AddPolicy("JobPoster", policy => policy.RequireRole("association", "company"));
+        options.AddPolicy("Shop", policy => policy.RequireRole("shop"));
         options.AddPolicy("OrganizationOrAdmin", policy => policy.RequireRole("association", "company", "admin"));
         options.AddPolicy("NonAdmin", policy => policy.RequireRole("disabled_user", "volunteer", "association", "company"));
         options.AddPolicy("Admin", policy => policy.RequireRole("admin"));
@@ -410,6 +412,7 @@ try
 
         var db = scope.ServiceProvider.GetRequiredService<HamzetWaslDbContext>();
         await IdentitySchemaInitializer.InitializeAsync(db);
+        await SchemaUpgrades.ApplyAsync(db);
         await scope.ServiceProvider.GetRequiredService<DatabaseSeeder>().SeedAsync();
     }
 

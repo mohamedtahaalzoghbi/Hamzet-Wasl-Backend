@@ -75,6 +75,8 @@ public partial class HamzetWaslDbContext : IdentityDbContext<AppUser, IdentityRo
 
     public virtual DbSet<Job> Jobs { get; set; }
 
+    public virtual DbSet<ShopProduct> ShopProducts { get; set; }
+
     public virtual DbSet<JobAccommodation> JobAccommodations { get; set; }
 
     public virtual DbSet<JobApplication> JobApplications { get; set; }
@@ -421,6 +423,20 @@ public partial class HamzetWaslDbContext : IdentityDbContext<AppUser, IdentityRo
                 .HasForeignKey(d => d.PostId)
                 .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("FK_COMMENT_post_id");
+        });
+
+        modelBuilder.Entity<ShopProduct>(entity =>
+        {
+            entity.ToTable("SHOP_PRODUCT");
+            entity.HasKey(e => e.ProductId);
+            entity.Property(e => e.ProductId).HasDefaultValueSql("(newsequentialid())").HasColumnName("product_id");
+            entity.Property(e => e.OrganizationId).HasColumnName("organization_id");
+            entity.Property(e => e.Name).HasMaxLength(200).HasColumnName("name");
+            entity.Property(e => e.Description).HasColumnName("description");
+            entity.Property(e => e.Price).HasColumnType("decimal(12, 2)").HasColumnName("price");
+            entity.Property(e => e.Available).HasColumnName("available");
+            entity.Property(e => e.CreatedAt).HasPrecision(0).HasColumnName("created_at");
+            entity.HasOne(d => d.Organization).WithMany().HasForeignKey(d => d.OrganizationId).OnDelete(DeleteBehavior.ClientSetNull).HasConstraintName("FK_SHOP_PRODUCT_organization_id");
         });
 
         modelBuilder.Entity<Community>(entity =>
