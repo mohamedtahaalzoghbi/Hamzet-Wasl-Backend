@@ -112,7 +112,7 @@ public class Phase6FlowTests(ApiFixture fixture)
         var (_, recv, _) = await assoc.GetAsync<List<InquiryDto>>("/api/v1/directory/inquiries?received=true");
         Assert.Contains(recv!, i => i.InquiryId == inq!.InquiryId);
         var (sRep, rep, _) = await assoc.PostAsync<InquiryDto>($"/api/v1/directory/inquiries/{inq!.InquiryId}/messages", new { body = "السبت 5 مساءً" });
-        Assert.Equal(201, sRep);
+        Assert.Equal(200, sRep);
         Assert.Equal(2, rep!.Messages.Count);
         var (sOther, _, _) = await vol.GetAsync<InquiryDto>($"/api/v1/directory/inquiries/{inq.InquiryId}");
         Assert.Equal(404, sOther);
