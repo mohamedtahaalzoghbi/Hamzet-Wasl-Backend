@@ -14,6 +14,7 @@ public interface IAdminService
     Task<IReadOnlyList<InterviewSlotAdminDto>> GetInterviewSlotsAsync(CancellationToken ct = default);
     Task<InterviewSlotAdminDto> CreateInterviewSlotAsync(Guid reviewerId, CreateInterviewSlotRequest request, CancellationToken ct = default);
     Task DeleteInterviewSlotAsync(Guid reviewerId, Guid slotId, CancellationToken ct = default);
+    Task<PagedResult<AdminUserListItemDto>> GetUsersAsync(string? role, string? status, string? search, int page, int pageSize, CancellationToken ct = default);
     Task SetUserSuspensionAsync(Guid adminId, Guid userId, SuspendUserRequest request, CancellationToken ct = default);
     Task<PagedResult<DeletionRequestDto>> GetDeletionRequestsAsync(string? status, int page, int pageSize, CancellationToken ct = default);
     Task ResolveDeletionRequestAsync(Guid adminId, Guid deletionRequestId, ResolveDeletionRequestRequest request, CancellationToken ct = default);

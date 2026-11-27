@@ -77,6 +77,13 @@ public sealed class AdminController : ApiControllerBase
         return NoContent();
     }
 
+    [HttpGet("users")]
+    [ProducesResponseType(typeof(ApiResponse<PagedResult<AdminUserListItemDto>>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<ApiResponse<PagedResult<AdminUserListItemDto>>>> GetUsers(
+        [FromQuery] string? role, [FromQuery] string? status, [FromQuery] string? search,
+        [FromQuery] int page = 1, [FromQuery] int pageSize = 20, CancellationToken ct = default) =>
+        Ok(Envelope(await _admin.GetUsersAsync(role, status, search, page, pageSize, ct)));
+
     [HttpPut("users/{userId:guid}/suspension")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     public async Task<IActionResult> SetUserSuspension(
