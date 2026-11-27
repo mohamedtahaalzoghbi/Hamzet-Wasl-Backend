@@ -1,5 +1,12 @@
 # Changelog
 
+## Shops (v2.5)
+- New `shop` account role and `shop` organization type. Shops register and are approved by admin like companies.
+- New table `SHOP_PRODUCT` (name, description, optional price, available). Listing and contact only, no orders or payments.
+- New endpoints under `/api/v1/shops` (public list and detail, shop owner product CRUD).
+- Jobs endpoints now use a `JobPoster` policy (association, company), so shops cannot post jobs.
+- Existing databases are upgraded at startup by `SchemaUpgrades` (idempotent). Migration file: `db/migrations/Hamzet_Wasl_Migration_v2_5_shops.sql`.
+
 Contract history for the Hamzet Wasl API. The Flutter and React clients pin to a published
 version; breaking changes only happen under a new `/api/v2` (MASTER_PROMPT §3).
 
