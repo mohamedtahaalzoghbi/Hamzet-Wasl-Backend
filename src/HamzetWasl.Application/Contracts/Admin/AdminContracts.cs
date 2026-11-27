@@ -42,6 +42,7 @@ public sealed class DecisionRequest
 public sealed record OrganizationReviewListItemDto(
     Guid ReviewId,
     Guid OrganizationId,
+    Guid OwnerUserId,
     string OrganizationName,
     string OrganizationType,
     string ApprovalStatus,
@@ -58,6 +59,7 @@ public sealed record OrganizationDocumentAdminDto(
 public sealed record OrganizationReviewDetailDto(
     Guid ReviewId,
     Guid OrganizationId,
+    Guid OwnerUserId,
     string OrganizationName,
     string OrganizationType,
     string? Field,
@@ -114,3 +116,12 @@ public sealed record AdminAuditDto(
     Guid TargetId,
     string Outcome,
     DateTime OccurredAt);
+
+public sealed record AdminUserListItemDto(
+    Guid UserId,
+    string Role,
+    string Email,
+    string? DisplayName,
+    string AccountStatus,
+    bool EmailVerified,
+    DateTime CreatedAt);

@@ -164,6 +164,44 @@ public sealed class AdminService : IAdminService
             ct);
     }
 
+    public async Task<PagedResult<AdminUserListItemDto>> GetUsersAsync(
+        string? role, string? status, string? search, int page, int pageSize, CancellationToken ct = default)
+    {
+        page = Math.Max(1, page);
+        pageSize = Math.Clamp(pageSize, 1, 100);
+
+        var query = _db.UserAccounts.AsNoTracking().Include(a => a.Role).Include(a => a.UserProfile).AsQueryable();
+        if (!string.IsNullOrWhiteSpace(role))
+        {
+            query = query.Where(a => a.Role.RoleName == role);
+        }
+        if (!string.IsNullOrWhiteSpace(status))
+        {
+            query = query.Where(a => a.AccountStatus == status);
+        }
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var term = search.Trim().ToLower();
+            query = query.Where(a => a.Email.ToLower().Contains(term)
+                || (a.UserProfile != null && a.UserProfile.DisplayName.ToLower().Contains(term)));
+        }
+
+        var total = await query.CountAsync(ct);
+        var items = await query.OrderByDescending(a => a.CreatedAt)
+            .Skip((page - 1) * pageSize).Take(pageSize)
+            .Select(a => new AdminUserListItemDto(
+                a.UserId,
+                a.Role.RoleName,
+                a.Email,
+                a.UserProfile != null ? a.UserProfile.DisplayName : null,
+                a.AccountStatus,
+                a.EmailVerified,
+                a.CreatedAt))
+            .ToListAsync(ct);
+
+        return new PagedResult<AdminUserListItemDto>(items, page, pageSize, total);
+    }
+
     public async Task<PagedResult<OrganizationReviewListItemDto>> GetOrganizationReviewsAsync(
         string? status, int page, int pageSize, CancellationToken ct = default)
     {
@@ -182,6 +220,7 @@ public sealed class AdminService : IAdminService
             .Select(r => new OrganizationReviewListItemDto(
                 r.ReviewId,
                 r.OrganizationId,
+                r.Organization.OwnerUserId,
                 r.Organization.Name,
                 r.Organization.OrganizationType,
                 r.Organization.ApprovalStatus,
@@ -208,7 +247,7 @@ public sealed class AdminService : IAdminService
 
         var org = review.Organization;
         return new OrganizationReviewDetailDto(
-            review.ReviewId, org.OrganizationId, org.Name, org.OrganizationType, org.Field, org.Description,
+            review.ReviewId, org.OrganizationId, org.OwnerUserId, org.Name, org.OrganizationType, org.Field, org.Description,
             org.Governorate, org.City, org.Website, org.ContactInformation, org.ApprovalStatus, review.Status,
             review.RequestedAt, review.DecidedAt, review.DecisionNotes, documents);
     }
