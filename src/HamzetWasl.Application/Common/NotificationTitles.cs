@@ -24,6 +24,8 @@ public static class NotificationTitles
         NotificationTypes.HelpOfferAccepted => "تم قبول عرضك",
         NotificationTypes.HelpMessageReceived => "رسالة جديدة",
         NotificationTypes.HelpCompleted => "تمت المساعدة",
+        NotificationTypes.JobApplicationReceived => "طلب تقديم جديد",
+        NotificationTypes.JobApplicationStatus => "تحديث على طلب التقديم",
         _ => "إشعار جديد"
     };
 }
