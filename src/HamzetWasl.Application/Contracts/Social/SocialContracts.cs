@@ -1,13 +1,14 @@
 namespace HamzetWasl.Application.Contracts.Social;
 
-public sealed record CreateCommunityRequest(string Name, string Description, string Rules);
+/// <summary>Creates a community. AudienceRole (optional) restricts the community to one role, e.g. "disabled_user".</summary>
+public sealed record CreateCommunityRequest(string Name, string Description, string Rules, string? AudienceRole = null);
 public sealed record CreatePostRequest(Guid CommunityId, string Body);
 public sealed record CreateCommentRequest(string Body);
 public sealed record ReactRequest(string Type);
 public sealed record ContentReportRequest(string Reason);
 public sealed record ResolveReportRequest(bool Hide, string? Resolution);
 
-public sealed record CommunityDto(Guid CommunityId, string Name, string Description, string Rules, int MembersCount, int PostsCount, bool Joined);
+public sealed record CommunityDto(Guid CommunityId, string Name, string Description, string Rules, int MembersCount, int PostsCount, bool Joined, string? AudienceRole);
 
 public sealed record PostMediaDto(Guid MediaId, string Url, string? AltText);
 

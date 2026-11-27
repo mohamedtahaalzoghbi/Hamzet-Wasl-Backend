@@ -526,6 +526,9 @@ public partial class HamzetWaslDbContext : IdentityDbContext<AppUser, IdentityRo
                 .HasMaxLength(200)
                 .HasColumnName("name");
             entity.Property(e => e.Rules).HasColumnName("rules");
+            entity.Property(e => e.AudienceRole)
+                .HasMaxLength(50)
+                .HasColumnName("audience_role");
         });
 
         modelBuilder.Entity<CommunityMembership>(entity =>

@@ -81,5 +81,14 @@ IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_CHAT_MESSAGE_sender_i
     CREATE INDEX IX_CHAT_MESSAGE_sender_id ON dbo.CHAT_MESSAGE(sender_id);
 """;
         await db.Database.ExecuteSqlRawAsync(chatSql, ct);
+
+        // v2.7: role-restricted communities. Adds the column and its check only when missing.
+        const string communitySql = """
+IF COL_LENGTH(N'dbo.COMMUNITY', N'audience_role') IS NULL
+    ALTER TABLE dbo.COMMUNITY ADD audience_role NVARCHAR(50) NULL;
+IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = N'CK_COMMUNITY_audience_role')
+    ALTER TABLE dbo.COMMUNITY ADD CONSTRAINT CK_COMMUNITY_audience_role CHECK (audience_role IN (N'disabled_user', N'volunteer', N'association', N'company', N'shop'));
+""";
+        await db.Database.ExecuteSqlRawAsync(communitySql, ct);
     }
 }

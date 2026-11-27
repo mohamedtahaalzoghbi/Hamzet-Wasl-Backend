@@ -20779,6 +20779,10 @@
           },
           "joined": {
             "type": "boolean"
+          },
+          "audienceRole": {
+            "type": "string",
+            "nullable": true
           }
         },
         "additionalProperties": false
@@ -20956,6 +20960,10 @@
             "nullable": true
           },
           "rules": {
+            "type": "string",
+            "nullable": true
+          },
+          "audienceRole": {
             "type": "string",
             "nullable": true
           }

@@ -13,6 +13,21 @@ public sealed class SocialService(HamzetWaslDbContext db, IFileStorage storage, 
     private const string Hidden = "hidden";
     private const int MaxMediaPerPost = 4;
     private static readonly string[] Reactions = ["like", "support", "thanks"];
+    private static readonly string[] MemberRoles = ["disabled_user", "volunteer", "association", "company", "shop"];
+
+    private async Task<string> RoleOfAsync(Guid userId, CancellationToken ct) =>
+        await db.UserAccounts.Where(u => u.UserId == userId).Select(u => u.Role.RoleName).FirstOrDefaultAsync(ct) ?? "";
+
+    private static bool CanSee(string viewerRole, string? audienceRole) =>
+        audienceRole is null || viewerRole == "admin" || viewerRole == audienceRole;
+
+    /// <summary>Throws 404 when the community does not exist or the caller's role may not see it.</summary>
+    private async Task<Community> RequireVisibleCommunityAsync(Guid userId, Guid communityId, CancellationToken ct)
+    {
+        var community = await db.Communities.FirstOrDefaultAsync(c => c.CommunityId == communityId, ct) ?? throw AppException.NotFound();
+        if (!CanSee(await RoleOfAsync(userId, ct), community.AudienceRole)) throw AppException.NotFound();
+        return community;
+    }
 
     private static AppException Invalid(string field, string message) =>
         AppException.Validation(new Dictionary<string, string[]> { [field] = [message] });
@@ -27,12 +42,14 @@ public sealed class SocialService(HamzetWaslDbContext db, IFileStorage storage, 
 
     public async Task<IReadOnlyList<CommunityDto>> GetCommunitiesAsync(Guid userId, CancellationToken ct = default)
     {
+        var viewerRole = await RoleOfAsync(userId, ct);
         var rows = await db.Communities.OrderBy(c => c.Name).ToListAsync(ct);
+        rows = rows.Where(c => CanSee(viewerRole, c.AudienceRole)).ToList();
         var ids = rows.Select(c => c.CommunityId).ToList();
         var members = await db.CommunityMemberships.Where(m => ids.Contains(m.CommunityId)).GroupBy(m => m.CommunityId).Select(g => new { g.Key, N = g.Count() }).ToDictionaryAsync(x => x.Key, x => x.N, ct);
         var posts = await db.Posts.Where(p => ids.Contains(p.CommunityId) && p.ModerationStatus == Published).GroupBy(p => p.CommunityId).Select(g => new { g.Key, N = g.Count() }).ToDictionaryAsync(x => x.Key, x => x.N, ct);
         var mine = (await db.CommunityMemberships.Where(m => m.UserId == userId).Select(m => m.CommunityId).ToListAsync(ct)).ToHashSet();
-        return rows.Select(c => new CommunityDto(c.CommunityId, c.Name, c.Description, c.Rules, members.GetValueOrDefault(c.CommunityId), posts.GetValueOrDefault(c.CommunityId), mine.Contains(c.CommunityId))).ToList();
+        return rows.Select(c => new CommunityDto(c.CommunityId, c.Name, c.Description, c.Rules, members.GetValueOrDefault(c.CommunityId), posts.GetValueOrDefault(c.CommunityId), mine.Contains(c.CommunityId), c.AudienceRole)).ToList();
     }
 
     public async Task<CommunityDto> CreateCommunityAsync(Guid adminId, CreateCommunityRequest r, CancellationToken ct = default)
@@ -40,16 +57,21 @@ public sealed class SocialService(HamzetWaslDbContext db, IFileStorage storage, 
         if (string.IsNullOrWhiteSpace(r.Name) || r.Name.Length > 200) throw Invalid("name", "اسم المجتمع مطلوب (حتى 200 حرف).");
         if (string.IsNullOrWhiteSpace(r.Description)) throw Invalid("description", "الوصف مطلوب.");
         if (string.IsNullOrWhiteSpace(r.Rules)) throw Invalid("rules", "قواعد المجتمع مطلوبة.");
+        var audienceRole = string.IsNullOrWhiteSpace(r.AudienceRole) ? null : r.AudienceRole.Trim();
+        if (audienceRole is not null && !MemberRoles.Contains(audienceRole)) throw Invalid("audienceRole", "نوع الجمهور غير صحيح.");
         if (await db.Communities.AnyAsync(c => c.Name == r.Name.Trim(), ct)) throw AppException.Conflict(message: "فيه مجتمع بنفس الاسم.");
-        var c = new Community { CommunityId = Guid.NewGuid(), Name = r.Name.Trim(), Description = r.Description.Trim(), Rules = r.Rules.Trim() };
+        var c = new Community { CommunityId = Guid.NewGuid(), Name = r.Name.Trim(), Description = r.Description.Trim(), Rules = r.Rules.Trim(), AudienceRole = audienceRole };
         db.Communities.Add(c);
         await db.SaveChangesAsync(ct);
-        return new CommunityDto(c.CommunityId, c.Name, c.Description, c.Rules, 0, 0, false);
+        return new CommunityDto(c.CommunityId, c.Name, c.Description, c.Rules, 0, 0, false, c.AudienceRole);
     }
 
     public async Task JoinAsync(Guid userId, Guid communityId, CancellationToken ct = default)
     {
-        if (!await db.Communities.AnyAsync(c => c.CommunityId == communityId, ct)) throw AppException.NotFound();
+        var community = await RequireVisibleCommunityAsync(userId, communityId, ct);
+        var role = await RoleOfAsync(userId, ct);
+        if (community.AudienceRole is not null && role != community.AudienceRole)
+            throw AppException.Forbidden(message: "المجتمع ده مخصوص لنوع حساب معين.");
         if (await db.CommunityMemberships.AnyAsync(m => m.CommunityId == communityId && m.UserId == userId, ct)) return;
         db.CommunityMemberships.Add(new CommunityMembership { CommunityId = communityId, UserId = userId, JoinedAt = clock.UtcNow });
         await db.SaveChangesAsync(ct);
@@ -67,6 +89,11 @@ public sealed class SocialService(HamzetWaslDbContext db, IFileStorage storage, 
     {
         (page, pageSize) = Clamp(page, pageSize);
         IQueryable<Post> q = db.Posts.Where(p => p.ModerationStatus == Published);
+        var viewerRole = await RoleOfAsync(userId, ct);
+        if (viewerRole != "admin")
+        {
+            q = q.Where(p => p.Community.AudienceRole == null || p.Community.AudienceRole == viewerRole);
+        }
         if (communityId is { } cid) q = q.Where(p => p.CommunityId == cid);
         if (authorId is { } aid) q = q.Where(p => p.AuthorId == aid);
         if (followingOnly)
@@ -119,6 +146,7 @@ public sealed class SocialService(HamzetWaslDbContext db, IFileStorage storage, 
     public async Task<PostDetailDto> GetPostAsync(Guid userId, Guid postId, CancellationToken ct = default)
     {
         var p = await db.Posts.FirstOrDefaultAsync(x => x.PostId == postId && x.ModerationStatus == Published, ct) ?? throw AppException.NotFound();
+        await RequireVisibleCommunityAsync(userId, p.CommunityId, ct);
         var comments = await db.Comments.Where(c => c.PostId == postId && c.ModerationStatus == Published).OrderBy(c => c.CreatedAt).Take(200).ToListAsync(ct);
         var names = await NamesAsync(comments.Select(c => c.AuthorId), ct);
         return new PostDetailDto((await ToDtosAsync([p], userId, ct))[0],
@@ -137,7 +165,8 @@ public sealed class SocialService(HamzetWaslDbContext db, IFileStorage storage, 
     {
         if (string.IsNullOrWhiteSpace(body)) throw Invalid("body", "اكتب التعليق.");
         if (body.Length > 1000) throw Invalid("body", "التعليق طويل (حتى 1000 حرف).");
-        if (!await db.Posts.AnyAsync(x => x.PostId == postId && x.ModerationStatus == Published, ct)) throw AppException.NotFound();
+        var commentedPost = await db.Posts.FirstOrDefaultAsync(x => x.PostId == postId && x.ModerationStatus == Published, ct) ?? throw AppException.NotFound();
+        await RequireVisibleCommunityAsync(userId, commentedPost.CommunityId, ct);
         var c = new Comment { CommentId = Guid.NewGuid(), PostId = postId, AuthorId = userId, Body = body.Trim(), ModerationStatus = Published, CreatedAt = clock.UtcNow };
         db.Comments.Add(c);
         await db.SaveChangesAsync(ct);
@@ -148,7 +177,8 @@ public sealed class SocialService(HamzetWaslDbContext db, IFileStorage storage, 
     public async Task ReactAsync(Guid userId, Guid postId, string type, CancellationToken ct = default)
     {
         if (!Reactions.Contains(type)) throw Invalid("type", "نوع التفاعل غير صحيح (like أو support أو thanks).");
-        if (!await db.Posts.AnyAsync(x => x.PostId == postId && x.ModerationStatus == Published, ct)) throw AppException.NotFound();
+        var reactedPost = await db.Posts.FirstOrDefaultAsync(x => x.PostId == postId && x.ModerationStatus == Published, ct) ?? throw AppException.NotFound();
+        await RequireVisibleCommunityAsync(userId, reactedPost.CommunityId, ct);
         var r = await db.PostReactions.FirstOrDefaultAsync(x => x.PostId == postId && x.UserId == userId, ct);
         if (r is null) db.PostReactions.Add(new PostReaction { PostId = postId, UserId = userId, ReactionType = type });
         else r.ReactionType = type;
@@ -166,7 +196,8 @@ public sealed class SocialService(HamzetWaslDbContext db, IFileStorage storage, 
     public async Task ReportPostAsync(Guid userId, Guid postId, string reason, CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(reason)) throw Invalid("reason", "اكتب سبب البلاغ.");
-        if (!await db.Posts.AnyAsync(x => x.PostId == postId, ct)) throw AppException.NotFound();
+        var reportedPost = await db.Posts.FirstOrDefaultAsync(x => x.PostId == postId, ct) ?? throw AppException.NotFound();
+        await RequireVisibleCommunityAsync(userId, reportedPost.CommunityId, ct);
         db.ContentReports.Add(new ContentReport { ReportId = Guid.NewGuid(), ReporterId = userId, PostId = postId, Reason = reason.Trim(), Status = "open" });
         await db.SaveChangesAsync(ct);
     }

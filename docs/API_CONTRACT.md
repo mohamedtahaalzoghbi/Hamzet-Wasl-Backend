@@ -546,3 +546,13 @@ counts, follow state) are always visible.
 One conversation exists per pair of accounts: the pair is stored ordered
 (`user_low_id < user_high_id`) under a unique index, so either side can start it and both
 always land in the same conversation.
+
+### Role-restricted communities (v2.7)
+
+`POST /social/communities` (admin) accepts an optional `audienceRole` (`disabled_user`,
+`volunteer`, `association`, `company` or `shop`). A restricted community belongs to that role
+only: other roles do not see it in `GET /social/communities`, joining answers 403, its posts
+are filtered out of their feed, and direct post, comment, reaction or report access answers
+404. The admin sees every community for moderation. `CommunityDto.audienceRole` is `null` for
+open communities. This powers the per-disability communities (one per need type) that belong
+to disabled-user accounts only.

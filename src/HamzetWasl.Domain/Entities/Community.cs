@@ -13,6 +13,8 @@ public partial class Community
 
     public string Rules { get; set; } = null!;
 
+    public string? AudienceRole { get; set; }
+
     public virtual ICollection<CommunityMembership> CommunityMemberships { get; set; } = new List<CommunityMembership>();
 
     public virtual ICollection<Post> Posts { get; set; } = new List<Post>();

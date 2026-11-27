@@ -559,7 +559,9 @@ CREATE TABLE dbo.COMMUNITY (
     name NVARCHAR(200) NOT NULL,
     description NVARCHAR(MAX) NOT NULL,
     rules NVARCHAR(MAX) NOT NULL,
-    CONSTRAINT PK_COMMUNITY PRIMARY KEY (community_id)
+    audience_role NVARCHAR(50) NULL,
+    CONSTRAINT PK_COMMUNITY PRIMARY KEY (community_id),
+    CONSTRAINT CK_COMMUNITY_audience_role CHECK (audience_role IN (N'disabled_user', N'volunteer', N'association', N'company', N'shop'))
 );
 GO
 
