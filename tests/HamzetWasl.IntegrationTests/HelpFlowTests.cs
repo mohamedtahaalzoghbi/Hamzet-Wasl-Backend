@@ -124,8 +124,8 @@ public class HelpFlowTests(ApiFixture fixture)
         Assert.Null(e2);
         Assert.Equal("open", req!.Status);
 
-        var (_, mine, _) = await du.GetAsync<List<HelpRequestDto>>("/api/v1/help/requests/mine");
-        Assert.Contains(mine!, r => r.RequestId == req.RequestId);
+        var (_, mine, _) = await du.GetAsync<PagedResult<HelpRequestDto>>("/api/v1/help/requests/mine");
+        Assert.Contains(mine!.Items, r => r.RequestId == req.RequestId);
 
         var (_, open, eo) = await vol.GetAsync<PagedResult<HelpRequestDto>>("/api/v1/help/requests/open");
         Assert.Null(eo);
