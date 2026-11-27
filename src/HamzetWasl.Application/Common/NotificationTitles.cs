@@ -26,6 +26,9 @@ public static class NotificationTitles
         NotificationTypes.HelpCompleted => "تمت المساعدة",
         NotificationTypes.JobApplicationReceived => "طلب تقديم جديد",
         NotificationTypes.JobApplicationStatus => "تحديث على طلب التقديم",
+        NotificationTypes.SosAlert => "تنبيه طوارئ",
+        NotificationTypes.InquiryReceived => "استفسار جديد",
+        NotificationTypes.InquiryReplied => "رد على استفسارك",
         _ => "إشعار جديد"
     };
 }

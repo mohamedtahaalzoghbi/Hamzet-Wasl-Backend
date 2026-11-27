@@ -93,6 +93,10 @@ public static class DependencyInjection
         services.AddScoped<IJobService, JobService>();
         services.AddScoped<ISocialService, SocialService>();
         services.AddScoped<IShopService, ShopService>();
+        services.AddScoped<IDirectoryService, DirectoryService>();
+        services.AddScoped<IPlaceService, PlaceService>();
+        services.AddScoped<ISosService, SosService>();
+        services.AddScoped<IStatsService, StatsService>();
         services.AddScoped<DatabaseSeeder>();
 
         services.AddHostedService<EvidenceRetentionCleanupService>();
