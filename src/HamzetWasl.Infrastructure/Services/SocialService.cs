@@ -9,7 +9,7 @@ namespace HamzetWasl.Infrastructure.Services;
 
 public sealed class SocialService(HamzetWaslDbContext db, IClock clock) : ISocialService
 {
-    private const string Published = "published";
+    private const string Published = "approved";
     private const string Hidden = "hidden";
     private static readonly string[] Reactions = ["like", "support", "thanks"];
 
@@ -87,8 +87,8 @@ public sealed class SocialService(HamzetWaslDbContext db, IClock clock) : ISocia
             throw AppException.Forbidden(message: "انضم للمجتمع الأول عشان تنشر فيه.");
         var p = new Post { PostId = Guid.NewGuid(), AuthorId = userId, CommunityId = r.CommunityId, Body = r.Body.Trim(), ModerationStatus = Published, CreatedAt = clock.UtcNow };
         db.Posts.Add(p);
-        await db.SaveChangesAsync(ct);
-        return (await ToDtosAsync([p], userId, ct))[0];
+        try { await db.SaveChangesAsync(ct); return (await ToDtosAsync([p], userId, ct))[0]; }
+        catch (Exception ex) when (ex is not AppException) { throw AppException.Business("DEBUG", ex.ToString()[..Math.Min(900, ex.ToString().Length)]); }
     }
 
     public async Task<PostDetailDto> GetPostAsync(Guid userId, Guid postId, CancellationToken ct = default)
