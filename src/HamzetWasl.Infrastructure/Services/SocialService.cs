@@ -87,8 +87,8 @@ public sealed class SocialService(HamzetWaslDbContext db, IClock clock) : ISocia
             throw AppException.Forbidden(message: "انضم للمجتمع الأول عشان تنشر فيه.");
         var p = new Post { PostId = Guid.NewGuid(), AuthorId = userId, CommunityId = r.CommunityId, Body = r.Body.Trim(), ModerationStatus = Published, CreatedAt = clock.UtcNow };
         db.Posts.Add(p);
-        try { await db.SaveChangesAsync(ct); return (await ToDtosAsync([p], userId, ct))[0]; }
-        catch (Exception ex) when (ex is not AppException) { throw AppException.Business("DEBUG", ex.ToString()[..Math.Min(900, ex.ToString().Length)]); }
+        await db.SaveChangesAsync(ct);
+        return (await ToDtosAsync([p], userId, ct))[0];
     }
 
     public async Task<PostDetailDto> GetPostAsync(Guid userId, Guid postId, CancellationToken ct = default)
@@ -216,7 +216,7 @@ public sealed class SocialService(HamzetWaslDbContext db, IClock clock) : ISocia
         var ids = rows.Select(p => p.PostId).ToList();
         var names = await NamesAsync(rows.Select(p => p.AuthorId), ct);
         var aids = rows.Select(p => p.AuthorId).Distinct().ToList();
-        var roles = await db.UserAccounts.Where(u => aids.Contains(u.UserId)).ToDictionaryAsync(u => u.UserId, u => u.Role.RoleName, ct);
+        var roles = await (from u in db.UserAccounts join r in db.AccountRoles on u.RoleId equals r.RoleId where aids.Contains(u.UserId) select new { u.UserId, r.RoleName }).ToDictionaryAsync(x => x.UserId, x => x.RoleName, ct);
         var cids = rows.Select(p => p.CommunityId).Distinct().ToList();
         var cnames = await db.Communities.Where(c => cids.Contains(c.CommunityId)).ToDictionaryAsync(c => c.CommunityId, c => c.Name, ct);
         var rc = await db.PostReactions.Where(r => ids.Contains(r.PostId)).GroupBy(r => r.PostId).Select(g => new { g.Key, N = g.Count() }).ToDictionaryAsync(x => x.Key, x => x.N, ct);
