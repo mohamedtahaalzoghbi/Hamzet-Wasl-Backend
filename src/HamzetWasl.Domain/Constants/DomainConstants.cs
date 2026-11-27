@@ -201,6 +201,9 @@ public static class NotificationTypes
     public const string HelpCompleted = "help_completed";
     public const string JobApplicationReceived = "job_application_received";
     public const string JobApplicationStatus = "job_application_status";
+    public const string SosAlert = "sos_alert";
+    public const string InquiryReceived = "inquiry_received";
+    public const string InquiryReplied = "inquiry_replied";
 }
 
 public static class DeletionRequestStatuses
